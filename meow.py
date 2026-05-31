@@ -41,6 +41,8 @@ class MeowEngine(object):
 
 
 if __name__ == "__main__":
-    engine = MeowEngine(h5dir="<data_dir_path>", cacheDir=None)
+    import os
+    data_dir = os.path.join(os.path.dirname(__file__), "data")
+    engine = MeowEngine(h5dir=data_dir, cacheDir=None)
     engine.fit(20230601, 20231130)
     engine.eval(20231201, 20231229)
