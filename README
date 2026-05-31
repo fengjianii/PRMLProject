@@ -6,3 +6,6 @@ Requirements:
 To run the example code:
     -- cd <project directory>
     -- python3 meow.py
+
+Optional C module:
+    -- see AGENT_TRADING.md for prediction export and lightweight Trading Agent backtest usage.

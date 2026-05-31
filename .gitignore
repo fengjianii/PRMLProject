@@ -10,5 +10,10 @@ release
 dist
 *.egg-info
 *.log
+*.h5
+data/
+outputs/
+cache/
+.pytest_cache/
 CMakeLists.txt
 dask-worker-space
