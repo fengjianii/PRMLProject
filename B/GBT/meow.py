@@ -126,6 +126,17 @@ class MeowEngine(object):
         xdf, ydf = self.featGenerator.genFeatures(rawData)
         # 训练模型
         self.model.fit(xdf, ydf)
+        
+        # 生成训练曲线
+        try:
+            log.inf("生成训练曲线...")
+            figure_path = self.model.plot_training_curves(output_dir='figures')
+            if figure_path:
+                log.inf(f"训练曲线已保存到: {figure_path}")
+            else:
+                log.yellow("无法生成训练曲线")
+        except Exception as e:
+            log.yellow(f"生成训练曲线时出错: {e}")
 
     def predict(self, xdf):
         """
@@ -175,9 +186,33 @@ class MeowEngine(object):
         # 生成特征和标签
         xdf, ydf = self.featGenerator.genFeatures(rawData)
         # 模型预测，将预测结果添加到ydf
-        ydf.loc[:, "forecast"] = self.predict(xdf)
+        predictions = self.predict(xdf)
+        ydf.loc[:, "forecast"] = predictions
         # 计算评估指标
         self.evaluator.eval(ydf)
+        
+        # 生成预测可视化图表
+        try:
+            log.inf("生成预测可视化图表...")
+            # 提取真实值和预测值
+            y_true = ydf["fret12"].to_numpy()
+            y_pred = predictions
+            
+            # 创建完整的训练报告
+            generated_files = self.model.create_training_report(
+                y_true=y_true,
+                y_pred=y_pred,
+                output_dir='figures'
+            )
+            
+            if generated_files:
+                log.inf(f"生成了 {len(generated_files)} 个可视化图表:")
+                for file_path in generated_files:
+                    log.inf(f"  - {file_path}")
+            else:
+                log.yellow("无法生成可视化图表")
+        except Exception as e:
+            log.yellow(f"生成可视化图表时出错: {e}")
 
 
 if __name__ == "__main__":
