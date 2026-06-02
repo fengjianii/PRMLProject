@@ -46,6 +46,7 @@
 """
 
 import os
+import numpy as np
 from log import log
 from dl import MeowDataLoader
 from feat import MeowFeatureGenerator
@@ -213,6 +214,62 @@ class MeowEngine(object):
                 log.yellow("无法生成可视化图表")
         except Exception as e:
             log.yellow(f"生成可视化图表时出错: {e}")
+
+    def tune(self, startDate, endDate, n_trials=100, algorithm='bayesian',
+             n_splits=5, early_stopping_rounds=50, timeout_per_trial=1800,
+             output_dir='tuning_output', apply_best=True, sample_ratio=0.3,
+             generate_plots=False):
+        """
+        自动调参：基于项目模型fit->predict->eval闭环，逐步推导最优参数
+        
+        参数：
+            startDate: 训练数据起始日期
+            endDate: 训练数据结束日期
+            n_trials: 最大试验次数
+            algorithm: 'bayesian' 或 'random'
+            n_splits: 时序交叉验证折数
+            early_stopping_rounds: 早停轮数
+            timeout_per_trial: 单次试验超时秒数
+            output_dir: 调参输出目录
+            apply_best: 是否自动将最优参数应用到当前模型
+            sample_ratio: 调参时使用的数据比例（0-1），默认0.3
+                调参用子集找参数方向，最终训练用全量数据
+                超参数的最优值在不同数据量下趋势基本一致
+                
+        返回：
+            最优超参数字典
+        """
+        from tuner import MeowTuner
+        
+        dates = self.calendar.range(startDate, endDate)
+        rawData = self.dloader.loadDates(dates)
+        log.inf("Preparing data for auto-tuning...")
+        xdf, ydf = self.featGenerator.genFeatures(rawData)
+        
+        X = xdf.to_numpy().astype(np.float32)
+        y = ydf.to_numpy().ravel().astype(np.float32)
+        
+        log.inf(f"Tuning data shape: X={X.shape}, y={y.shape}")
+        
+        tuner = MeowTuner(output_dir=output_dir)
+        best_params = tuner.tune(
+            X, y,
+            n_trials=n_trials,
+            algorithm=algorithm,
+            n_splits=n_splits,
+            early_stopping_rounds=early_stopping_rounds,
+            timeout_per_trial=timeout_per_trial,
+            generate_plots=generate_plots,
+            sample_ratio=sample_ratio,
+        )
+        
+        if apply_best:
+            log.inf("Applying best params to current model...")
+            self.model.update_params(best_params)
+            self.model.update_params({'early_stopping_rounds': early_stopping_rounds})
+            log.inf("Best params applied. Call engine.fit() to train with optimized params.")
+        
+        return best_params
 
 
 if __name__ == "__main__":

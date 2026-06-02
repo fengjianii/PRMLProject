@@ -34,6 +34,7 @@
 """
 
 import os
+import json
 import numpy as np
 import lightgbm as lgb
 from sklearn.model_selection import train_test_split
@@ -85,7 +86,8 @@ class MeowModel(object):
             
             # GPU加速参数
             'device': 'gpu',           # 使用GPU(OpenCL)加速
-            'gpu_device_id': 0,        # 使用第0号GPU（独显）
+            'gpu_platform_id': 0,      # NVIDIA CUDA平台（0=NVIDIA, 1=Intel）
+            'gpu_device_id': 0,        # 平台内第0号GPU（RTX 3060独显）
             'gpu_use_dp': False,       # 使用单精度浮点（GPU更快）
             'max_bin': 63,             # GPU模式下限制直方图bin数
             
@@ -110,12 +112,79 @@ class MeowModel(object):
             
             # 其他参数
             'random_state': 42,       # 固定随机种子
-            'n_jobs': -1,             # 使用所有CPU核心
+            'n_jobs': 4,              # 限制CPU核心数（-1=全部，4=4核）
         }
         
         # 早停参数
         self.early_stopping_rounds = 10
         self.verbose_eval = False
+
+    def update_params(self, new_params):
+        """
+        更新模型超参数（用于调参后应用最优参数）
+        
+        参数：
+            new_params: 字典，包含要更新的超参数
+                可包含: max_depth, num_leaves, learning_rate, n_estimators,
+                       subsample, colsample_bytree, min_child_samples,
+                       reg_alpha, reg_lambda, early_stopping_rounds 等
+                        
+        示例：
+            model.update_params({
+                'max_depth': 7,
+                'num_leaves': 31,
+                'learning_rate': 0.02,
+                'n_estimators': 1500,
+                'subsample': 0.7,
+                'colsample_bytree': 0.8,
+                'min_child_samples': 50,
+                'reg_alpha': 0.1,
+                'reg_lambda': 1.0,
+                'early_stopping_rounds': 50,
+            })
+        """
+        param_mapping = {
+            'max_depth': 'max_depth',
+            'num_leaves': 'num_leaves',
+            'learning_rate': 'learning_rate',
+            'n_estimators': 'n_estimators',
+            'subsample': 'subsample',
+            'colsample_bytree': 'colsample_bytree',
+            'min_child_samples': 'min_child_samples',
+            'min_child_weight': 'min_child_weight',
+            'reg_alpha': 'reg_alpha',
+            'reg_lambda': 'reg_lambda',
+        }
+        
+        updated_keys = []
+        for key, param_key in param_mapping.items():
+            if key in new_params:
+                self.params[param_key] = new_params[key]
+                updated_keys.append(f"{param_key}={new_params[key]}")
+        
+        if 'early_stopping_rounds' in new_params:
+            self.early_stopping_rounds = new_params['early_stopping_rounds']
+            updated_keys.append(f"early_stopping_rounds={new_params['early_stopping_rounds']}")
+        
+        if updated_keys:
+            log.inf(f"Model params updated: {', '.join(updated_keys)}")
+        else:
+            log.yellow("No valid params found in new_params to update")
+
+    def load_params_from_json(self, json_path):
+        """
+        从JSON文件加载超参数并应用
+        
+        参数：
+            json_path: JSON文件路径（如调参输出的best_params.json）
+            
+        示例：
+            model.load_params_from_json('tuning_output/best_params.json')
+        """
+        with open(json_path, 'r', encoding='utf-8') as f:
+            params = json.load(f)
+        log.inf(f"Loaded params from {json_path}")
+        self.update_params(params)
 
     def fit(self, xdf, ydf):
         """
@@ -220,6 +289,51 @@ class MeowModel(object):
             log.inf(f"  {feature}: {imp:.4f}")
         
         log.inf("Done fitting")
+
+    def fit_with_validation(self, xdf_train, ydf_train, xdf_val, ydf_val):
+        """
+        使用外部提供的训练集和验证集训练模型（供调参器使用）
+        
+        参数：
+            xdf_train: 训练集特征DataFrame
+            ydf_train: 训练集标签DataFrame
+            xdf_val: 验证集特征DataFrame
+            ydf_val: 验证集标签DataFrame
+            
+        与fit()的区别：
+            fit()内部做80/20分割，此方法直接使用外部提供的划分，
+            避免调参时双重切分导致数据泄漏和评估不准。
+        """
+        self.feature_names = list(xdf_train.columns)
+        
+        X_train = xdf_train.to_numpy()
+        y_train = ydf_train.to_numpy().ravel()
+        X_val = xdf_val.to_numpy()
+        y_val = ydf_val.to_numpy().ravel()
+        
+        log.inf(f"Tuning fit: train={X_train.shape}, val={X_val.shape}")
+        
+        train_data = lgb.Dataset(X_train, label=y_train, feature_name=self.feature_names)
+        val_data = lgb.Dataset(X_val, label=y_val, reference=train_data, feature_name=self.feature_names)
+        
+        callbacks = [lgb.early_stopping(self.early_stopping_rounds, verbose=False)]
+        if self.verbose_eval:
+            callbacks.append(lgb.log_evaluation(period=100))
+        
+        self.train_history = {}
+        callbacks.append(lgb.record_evaluation(self.train_history))
+        
+        self.model = lgb.train(
+            params=self.params,
+            train_set=train_data,
+            valid_sets=[train_data, val_data],
+            valid_names=['training', 'validation'],
+            callbacks=callbacks
+        )
+        
+        best_iteration = self.model.best_iteration
+        best_score = self.model.best_score['validation']['l2']
+        log.inf(f"Training completed. Best iteration: {best_iteration}, Best validation L2: {best_score:.6f}")
 
     def predict(self, xdf):
         """

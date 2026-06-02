@@ -266,51 +266,72 @@ class MeowVisualizer:
         return save_path
     
     def plot_prediction_vs_actual(self, y_true, y_pred, 
-                                save_path=None, show_plot=False):
+                                save_path=None, show_plot=False,
+                                max_scatter_points=50000):
         """
-        绘制预测值与真实值散点图
+        绘制预测值与真实值散点图（大数据量自动采样）
         
         参数：
             y_true: 真实值数组
             y_pred: 预测值数组
             save_path: 图表保存路径
             show_plot: 是否显示图表
+            max_scatter_points: 散点图最大点数，超过则随机采样（默认5万）
             
         返回：
             图表保存路径
         """
+        y_true = np.asarray(y_true)
+        y_pred = np.asarray(y_pred)
+        n_total = len(y_true)
+        
+        # 大数据量采样，避免matplotlib渲染崩溃
+        if n_total > max_scatter_points:
+            rng = np.random.RandomState(42)
+            sample_idx = rng.choice(n_total, max_scatter_points, replace=False)
+            sample_idx.sort()
+            y_true_plot = y_true[sample_idx]
+            y_pred_plot = y_pred[sample_idx]
+            log.inf(f"散点图采样: {n_total} -> {max_scatter_points} 点")
+        else:
+            y_true_plot = y_true
+            y_pred_plot = y_pred
+        
+        # 统计信息用全量数据计算
+        corr = np.corrcoef(y_true, y_pred)[0, 1]
+        mse = np.mean((y_true - y_pred) ** 2)
+        r2 = 1 - mse / np.var(y_true)
+        
         plt.figure(figsize=(10, 8))
         
         # 散点图
         plt.subplot(2, 1, 1)
-        plt.scatter(y_true, y_pred, alpha=0.6, s=10, color='blue')
+        plt.scatter(y_true_plot, y_pred_plot, alpha=0.3, s=5, color='blue')
         
         # 添加完美预测线
-        min_val = min(np.min(y_true), np.min(y_pred))
-        max_val = max(np.max(y_true), np.max(y_pred))
+        min_val = min(np.min(y_true_plot), np.min(y_pred_plot))
+        max_val = max(np.max(y_true_plot), np.max(y_pred_plot))
         plt.plot([min_val, max_val], [min_val, max_val], 'r--', linewidth=2, label='完美预测线')
         
         plt.xlabel('真实值')
         plt.ylabel('预测值')
-        plt.title('预测值 vs 真实值散点图')
+        title = f'预测值 vs 真实值散点图 (n={n_total})'
+        if n_total > max_scatter_points:
+            title += f' [采样{max_scatter_points}点]'
+        plt.title(title)
         plt.legend()
         plt.grid(True, alpha=0.3)
         
         # 残差图
         plt.subplot(2, 1, 2)
-        residuals = y_pred - y_true
-        plt.scatter(y_pred, residuals, alpha=0.6, s=10, color='green')
+        residuals_plot = y_pred_plot - y_true_plot
+        plt.scatter(y_pred_plot, residuals_plot, alpha=0.3, s=5, color='green')
         plt.axhline(y=0, color='r', linestyle='--', linewidth=2)
         
         plt.xlabel('预测值')
         plt.ylabel('残差 (预测值 - 真实值)')
         plt.title('残差图')
         plt.grid(True, alpha=0.3)
-        
-        # 添加统计信息
-        corr = np.corrcoef(y_true, y_pred)[0, 1]
-        mse = np.mean((y_true - y_pred) ** 2)
-        r2 = 1 - mse / np.var(y_true)
         
         plt.text(0.02, 0.98, f'Pearson: {corr:.4f}\nR2: {r2:.4f}\nMSE: {mse:.6f}',
                 transform=plt.gca().transAxes,
