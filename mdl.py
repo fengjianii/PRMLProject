@@ -26,16 +26,18 @@ class MeowModel(object):
                 tol=1e-8,
             )
         elif model_type == "gbt":
+            # Default parameters tuned by B (Optuna Bayesian, 50 trials)
             self.estimator = HistGradientBoostingRegressor(
                 loss="squared_error",
-                learning_rate=0.05,
-                max_iter=300,
-                max_depth=8,
-                min_samples_leaf=50,
-                max_leaf_nodes=63,
+                learning_rate=0.0156,
+                max_iter=1600,
+                max_depth=5,
+                min_samples_leaf=200,
+                max_leaf_nodes=31,
                 random_state=42,
-                early_stopping=False,
-                validation_fraction=None,
+                early_stopping=True,
+                validation_fraction=0.1,
+                n_iter_no_change=50,
             )
         else:
             raise ValueError(f"Unknown model_type: {model_type}")
