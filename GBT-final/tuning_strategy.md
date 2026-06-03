@@ -257,3 +257,75 @@ P1的问题：新增20个rank特征导致冗余。修复：用rank特征**替换
 - min_child_samples 50~300, reg_alpha/lambda 0.01~2.0
 - 3折CV, 无过拟合惩罚, 提前剪枝ratio<0.3
 - 早停与lr联动
+
+### 结果
+- 调参Best Pearson: 0.0583 (CV评估)
+- 正式训练测试集Pearson: 0.0635
+- 最优参数: depth=5, leaves=31, lr=0.0156, n_est=1600, subsample=0.502, colsample=0.551, min_child=200, reg_alpha=0.779, reg_lambda=1.908
+
+---
+
+## 特征工程V2 (2026-06-03)
+
+### 三项改动
+
+#### 1. 修复shift/rolling跨天bug
+- **问题**: shift()/rolling()/diff()按groupby("symbol")分组，当天最后一分钟与下一天第一分钟连在一起
+- **修复**: 新增_per_session()方法，所有时序操作按(symbol, date)分组
+- **影响**: bret12, ret_1/3/6/12/24, rolling_mean/vol, depth_delta, rolling_trade_qty, trade_imbema5, trade_count_imbema5, overnight_gap等全部修正
+
+#### 2. 修正cs_rank分组粒度
+- **问题**: groupby("interval")会把不同日期同一时刻(6月1日9:31和6月2日9:31)混在一起排名
+- **修复**: 改为groupby(["date", "interval"])，保证只比较同一天同一时刻的所有股票
+- **影响**: 20个cs_rank特征和8个P1横截面特征
+
+#### 3. 新增22个特征（P0+P1）
+
+**P0 滚动统计特征（14个）**:
+| 特征 | 说明 |
+|------|------|
+| ob_imb0_roll_mean_12 | ob_imb0的12窗口均值 |
+| ob_imb0_roll_std_12 | ob_imb0的12窗口标准差 |
+| ob_imb0_roll_skew_12 | ob_imb0的12窗口偏度近似 |
+| ob_imb4_roll_mean_12 | ob_imb4的12窗口均值 |
+| ob_imb4_roll_std_12 | ob_imb4的12窗口标准差 |
+| trade_imb_roll_mean_12 | trade_imb的12窗口均值 |
+| trade_imb_roll_std_12 | trade_imb的12窗口标准差 |
+| trade_imb_roll_skew_12 | trade_imb的12窗口偏度近似 |
+| trade_imbema5_roll_mean_12 | trade_imbema5的12窗口均值 |
+| trade_imbema5_roll_std_12 | trade_imbema5的12窗口标准差 |
+| ob_imb0_change_6 | ob_imb0的6窗口变化率 |
+| ob_imb4_change_6 | ob_imb4的6窗口变化率 |
+| trade_imb_change_6 | trade_imb的6窗口变化率 |
+| trade_imbema5_change_6 | trade_imbema5的6窗口变化率 |
+
+**P1 横截面特征（8个）**:
+| 特征 | 说明 |
+|------|------|
+| cs_rank_ret_3 | ret_3的横截面rank |
+| cs_rank_ret_6 | ret_6的横截面rank |
+| cs_rank_rolling_vol_12 | rolling_vol_12的横截面rank |
+| cs_rank_rolling_mean_ret_12 | rolling_mean_ret_12的横截面rank |
+| cs_rank_ret_3_change | cs_rank_ret_3的1步变化 |
+| cs_rank_ret_6_change | cs_rank_ret_6的1步变化 |
+| cs_rank_rolling_vol_12_change | cs_rank_rolling_vol_12的1步变化 |
+| cs_rank_rolling_mean_ret_12_change | cs_rank_rolling_mean_ret_12的1步变化 |
+
+### 总特征数
+54 → 76
+
+---
+
+## V5 调参策略更新 (2026-06-03)
+
+### 变更
+| 参数 | V4 | V5 | 理由 |
+|------|----|----|------|
+| colsample_bytree | 0.5~0.8 | **0.4~0.7** | 76特征下0.8=选61个太多，收窄避免噪声特征 |
+
+### 其余不变
+- max_depth 3~5, num_leaves 7~min(2^max_depth,63), lr 0.005~0.1
+- n_estimators 200~2000, subsample 0.5~0.8
+- min_child_samples 50~300, reg_alpha/lambda 0.01~2.0
+- 3折CV, 无过拟合惩罚, 提前剪枝ratio<0.3
+- 早停与lr联动, n_trials=50, sample_ratio=0.7, timeout=900s
