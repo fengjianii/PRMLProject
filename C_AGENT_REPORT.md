@@ -20,6 +20,10 @@ Agent 在本项目中不是直接替代建模，也不是直接下单，而是�
 
 最终特征是否采用，不由 Agent 直接决定，而是由验证集上的 MSE、Pearson Correlation 和 R2 决定。这样可以避免把大模型建议当成结论，而是把它作为生成候选假设的工具。
 
+为了让这部分更实用，我新增了 `agent_factor_mining.py`。它可以直接从 h5 日期区间自动生成 76 个特征，并对每个特征计算全局相关性、横截面 period IC、ICIR、IC 正负比例和 top-bottom 10% 分组收益差。脚本还会把因子归入不同家族，自动生成 `C_factor_mining_report.md`、`C_factor_agent_config.json` 和 `C_top_factor_spread.svg`。
+
+这相当于把 Agent 从“人工解释助手”推进到“自动候选因子生成器”：它不会直接给出最终结论，但可以自动回答三个问题：哪些因子有信号、信号方向是正向还是反向、下一轮应该优先检查哪些因子家族。
+
 当前 76 个特征可以归纳为七类。需要注意的是，B 在 `GBT-final` 中保留了 feature set 开关，可以比较 `v4`、`no_p1`、`no_p0` 和 `full`，这为 C 后续解释 Agent 信号质量提供了一个自然切入点：如果 full 模型的 forecast 在 top-bottom 回测中表现更好，说明 P0/P1 新特征不只提升预测指标，也提升信号的交易方向价值。
 
 第一类是盘口压力因子。它们描述买卖盘深度、金额和挂单压力的相对强弱，例如 `cs_rank_ob_imb0`、`cs_rank_ob_imb4`、`cs_rank_buy_pressure_0`、`cs_rank_amount_imb_4` 等。它们背后的假设是：如果某只股票在同一时刻的买盘压力相对更强，那么短期价格更可能获得支撑。
@@ -35,6 +39,10 @@ Agent 在本项目中不是直接替代建模，也不是直接下单，而是�
 第六类是 P1 横截面相对强弱因子，例如 `cs_rank_ret_3`、`cs_rank_ret_12`、`cs_rank_rolling_vol_12`、`cs_rank_ret_3_change`。这类特征强调“相对位置”：不是只看一只股票涨了多少，而是看它在同一时刻所有股票中的排名。
 
 第七类是交互因子，例如 `ret_3_x_imb0`、`ret_6_x_imb0`、`ret_3_x_buy_intensity`、`spread_x_vol`。它们用于表达多个信号同时出现时的状态，例如价格短期上涨且盘口买压增强时，信号可能比单独看动量更可靠。
+
+真实数据自动挖掘结果中，最强的单因子方向主要集中在短周期反转。`cs_rank_ret_3` 的 mean IC 为 -0.049636，top-bottom 分组收益差为 -4.45 bps；`ret_1` 的 mean IC 为 -0.060702，分组收益差为 -5.63 bps；`ret_3` 的 mean IC 为 -0.060214，分组收益差为 -4.45 bps；`ret_3_x_buy_intensity` 的 mean IC 为 -0.057776，分组收益差为 -4.09 bps。这说明短时间内涨得越靠前的股票，在未来 12 分钟越容易出现回撤，这类因子更适合作为 reverse / short / risk signal。
+
+家族层面，`P1_cross_section`、`momentum_reversal` 和 `interaction` 是当前最值得优先解释和做消融的方向。这个结果也能反过来解释 B 模型的有效性：它不只是捕捉绝对价格变化，还捕捉同一时刻股票之间的相对强弱和短周期反转结构。
 
 ## 3. Trading Agent 设计
 
@@ -110,6 +118,8 @@ outputs/C_experiment_summary.md
 outputs/C_decile_mean_target.svg
 outputs/C_policy_spread.svg
 ```
+
+另外，`agent_factor_mining.py` 会自动生成一个 factor-aware Agent 配置。它使用 Top 8 个挖掘因子组合成 `agent_factor_score`，再按同样的 top-bottom 10% 策略做诊断性回测。当前诊断结果为：多空差 0.00048814，约 4.88 bps；横截面期级多空差 0.00048702，约 4.87 bps；67.64% 的横截面期多空差为正。这个结果不能替代 B 的最终 forecast，但说明 Agent 已经可以自动提出候选因子组合和下一轮策略配置。
 
 ## 6. 局限性
 

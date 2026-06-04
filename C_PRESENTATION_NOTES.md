@@ -16,6 +16,8 @@
 
 第一是 Agent-assisted alpha mining。我们不是让 Agent 直接替代建模，而是让它作为研究助手，结合字段含义、市场微观结构和 A/B 的代码，把 76 个特征整理成七类可解释因子：盘口压力、流动性和价差、成交主动性、动量反转、P0 时序状态、P1 横截面相对强弱，以及交互因子。最后特征是否有效，仍然由验证集上的 Pearson、R2 和 MSE 决定。
 
+我后面又把这部分做成了自动化工具。`agent_factor_mining.py` 可以从 h5 数据自动生成特征，对每个因子计算 Pearson、Spearman、横截面 IC、ICIR 和 top-bottom 分组收益差，然后自动输出因子报告和 factor-aware Agent 配置。
+
 第二是 lightweight Trading Agent。B 的模型输出 `forecast` 后，Agent 不再重新预测价格，而是把这个 alpha signal 转成三个动作：`1` 做多，`0` 空仓，`-1` 做空。默认策略是每个 `date + interval` 横截面里，做多 forecast 最高的 Top 10%，做空 forecast 最低的 Bottom 10%，其余持有空仓，并扣除 1 bps 的简化交易成本。
 
 真实数据复现里，B 最终模型在 2023 年 12 月测试集上的 Pearson 是 `0.0677`，R2 是 `0.00443`。接入 C 的 top-bottom 10% Agent 后，Top 10% 股票未来 12 分钟平均收益是 `0.00043309`，Bottom 10% 是 `-0.00034123`，多空差是 `0.00077432`，约等于 `7.74 bps`。
@@ -23,6 +25,10 @@
 这个结果说明，B 的 forecast 不只是让 Pearson 变高，也能在横截面上形成可解释的交易方向。进一步看 decile，底部十分位平均真实收益是 `-3.41 bps`，顶部十分位是 `4.33 bps`，从低到高整体递进。策略敏感性也符合直觉：top-bottom 5% 的多空差最大，约 `10.42 bps`；扩大到 10% 是 `7.74 bps`；扩大到 20% 后下降到 `5.51 bps`，说明越极端的预测分组信号越强。
 
 所以我的结论是：这不是完整 Agent trading 系统，而是 Agent-assisted alpha mining 加轻量交易决策原型。它的价值是把课程主任务从“预测指标更好”推进到“预测信号是否有交易方向价值”。
+
+如果时间允许，可以加一句自动因子挖掘：
+
+> 我还做了一个自动因子挖掘 Agent。它在 12 月测试区间自动发现，短周期反转是最强的单因子方向，比如 `cs_rank_ret_3` 的 mean IC 是 `-0.049636`，说明横截面短期涨幅越靠前，未来 12 分钟越容易回撤。Agent 会把这类因子标记成 reverse / short / risk signal，并自动生成一个 factor-aware Agent 配置。这个配置的诊断多空差约 `4.88 bps`，主要用于提出下一轮候选策略。
 
 ## 必背数字
 
@@ -49,6 +55,13 @@ Period-level check:
 period_count: 4,746
 period_long_short_spread: 0.00077266, about 7.73 bps
 positive_spread_period_rate: 0.7219
+
+Auto factor mining:
+best factor: cs_rank_ret_3
+cs_rank_ret_3 mean_ic: -0.049636
+cs_rank_ret_3 spread: -4.45 bps
+ret_1 spread: -5.63 bps
+factor-aware Agent diagnostic spread: 4.88 bps
 ```
 
 ## 老师可能追问
@@ -81,6 +94,10 @@ Pearson 说明预测值和真实收益有线性相关，但交易上还要看信
 
 这符合排序信号的特征。越靠近预测分布两端，forecast 越极端，信号越强；扩大交易范围后会纳入更多弱信号，收益差被稀释。
 
+**自动因子挖掘有什么用？**
+
+它把 Agent 从“解释报告”变成“候选策略生成器”。脚本会自动算每个因子的 IC、ICIR 和分组收益差，判断方向是 positive 还是 reverse，再输出 `C_factor_agent_config.json`。这份配置可以作为下一轮模型消融、风控过滤器或 factor-aware policy 的起点。
+
 ## PPT 建议
 
 1. 一页讲定位：课程主线是 `fret12` 预测，C 是预测后的轻量 Agent 决策层。
@@ -94,4 +111,5 @@ Pearson 说明预测值和真实收益有线性相关，但交易上还要看信
 ```text
 outputs/C_decile_mean_target.svg
 outputs/C_policy_spread.svg
+outputs/C_top_factor_spread.svg
 ```

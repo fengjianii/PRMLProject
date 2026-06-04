@@ -32,6 +32,7 @@ signal backtest，用来说明预测信号能否转成可解释的交易动作�
 - `agent_policy.py`: 把 `forecast` 转成 `action`。
 - `backtest.py`: 计算 `action * fret12`，并扣除可选交易成本。
 - `run_c_experiment.py`: 基于 B 的预测结果生成策略对比和 forecast decile 分析。
+- `agent_factor_mining.py`: 自动生成特征、挖掘因子 IC / 分组收益差，并导出 factor-aware Agent 配置。
 - `meow.py`: 保留默认入口，只通过环境变量开启预测导出和 Agent 摘要。
 - `C_AGENT_REPORT.md`: 可直接放进报告的 C 部分中文材料。
 
@@ -239,6 +240,57 @@ outputs/C_experiment_summary.md
 outputs/C_decile_mean_target.svg
 outputs/C_policy_spread.svg
 ```
+
+## 自动因子挖掘 Agent
+
+C 现在不只做预测结果回测，还支持自动因子挖掘。运行：
+
+```powershell
+python agent_factor_mining.py --data-dir data --start-date 20231201 --end-date 20231229 --output-dir outputs --top-k 15 --factor-agent-top-n 8 --cost-bps 1
+```
+
+它会自动完成：
+
+1. 从 h5 数据生成 76 个特征。
+2. 对每个因子计算全局 Pearson / Spearman。
+3. 对每个 `date + interval` 横截面计算 period IC、ICIR 和 IC 正负比例。
+4. 对每个因子做 top-bottom 10% 分组收益差。
+5. 按因子家族聚合，输出 Agent 建议。
+6. 根据 Top 因子自动生成 `factor-aware Agent` 配置，并做诊断性回测。
+
+输出文件：
+
+```text
+outputs/C_factor_mining_summary.csv
+outputs/C_factor_family_summary.csv
+outputs/C_factor_mining_report.md
+outputs/C_top_factor_spread.svg
+outputs/C_factor_agent_config.json
+outputs/C_factor_agent_summary.csv
+```
+
+12 月真实数据诊断中，Agent 自动挖出的最强单因子方向主要是短周期反转：
+
+```text
+cs_rank_ret_3: mean_ic = -0.049636, spread = -4.45 bps
+ret_1: mean_ic = -0.060702, spread = -5.63 bps
+ret_3: mean_ic = -0.060214, spread = -4.45 bps
+ret_3_x_buy_intensity: mean_ic = -0.057776, spread = -4.09 bps
+```
+
+这组结果的解释是：短时间内横截面涨幅越靠前，未来 12 分钟越容易回撤，所以这些因子应该作为
+reverse / short / risk signal 使用。因子家族层面，`P1_cross_section`、`momentum_reversal`
+和 `interaction` 是当前最值得优先解释和做消融的方向。
+
+自动生成的 factor-aware Agent 使用 Top 8 个挖掘因子组合成 `agent_factor_score`，诊断结果为：
+
+```text
+long_short_spread = 0.00048814，约 4.88 bps
+period_long_short_spread = 0.00048702，约 4.87 bps
+period_positive_spread_rate = 0.6764
+```
+
+这个结果不替代 B 的最终 forecast，也不当作最终 out-of-sample 证明。它的价值是让 Agent 能自动提出候选因子、解释因子方向，并生成下一轮可验证的策略配置。
 
 ## 汇报边界
 

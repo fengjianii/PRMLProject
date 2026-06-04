@@ -13,3 +13,4 @@ Optional C module:
     -- see C_PRESENTATION_NOTES.md for C's short presentation script and Q&A.
     -- B's GBT-final/meow.py supports MEOW_DATA_DIR, MEOW_BEST_PARAMS, MEOW_FEATURE_SET, and MEOW_PREDICTION_OUTPUT for C backtests.
     -- run_c_experiment.py generates C policy comparison, period-level checks, forecast decile summaries, and PPT-ready SVG charts from an exported prediction CSV.
+    -- agent_factor_mining.py runs automatic factor mining from h5 data and exports factor-aware Agent diagnostics.
