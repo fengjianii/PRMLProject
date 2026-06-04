@@ -1,17 +1,3 @@
-"""
-特征生成模块 (feat.py)
-
-基于V4原版(GBT-final)逻辑恢复，保留feature_set开关和P0/P1新特征。
-
-关键设计：
-    shift/rolling/ewm操作与V4原版一致：
-    - ret_1~ret_24, bret12: 全局shift（数据已按symbol+interval排列）
-    - rolling_mean/vol: 全局rolling
-    - trade_imbema5, trade_count_imbema5: 全局ewm
-    - overnight_gap, depth_delta, rolling_trade_qty: sort_values+groupby(symbol)
-    - cs_rank: groupby(interval)
-"""
-
 import os
 import numpy as np
 import pandas as pd
@@ -88,27 +74,22 @@ class MeowFeatureGenerator(object):
         self.mcols = ["symbol", "date", "interval"]
 
     def genFeatures(self, df):
-        log.inf("Generating {} features from raw data (set={})...".format(
+        log.inf("Generating {} features (set={})...".format(
             len(self.featureNames(self.feature_set)), self.feature_set))
         
-        # === 订单簿不平衡特征 ===
         df.loc[:, "ob_imb0"] = (df["asize0"] - df["bsize0"]) / (df["asize0"] + df["bsize0"])
         df.loc[:, "ob_imb4"] = (df["asize0_4"] - df["bsize0_4"]) / (df["asize0_4"] + df["bsize0_4"])
         df.loc[:, "ob_imb9"] = (df["asize5_9"] - df["bsize5_9"]) / (df["asize5_9"] + df["bsize5_9"])
         
-        # === 交易不平衡特征 ===
         df.loc[:, "trade_imb"] = (df["tradeBuyQty"] - df["tradeSellQty"]) / (df["tradeBuyQty"] + df["tradeSellQty"])
         df.loc[:, "trade_imbema5"] = df["trade_imb"].ewm(halflife=5).mean()
         
-        # === 动量/反转特征（V4原版：全局shift）===
         df.loc[:, "bret12"] = (df["midpx"] - df["midpx"].shift(12)) / df["midpx"].shift(12)
         cxbret = df.groupby("interval")[["bret12"]].mean().reset_index().rename(columns={"bret12": "cx_bret12"})
         df = df.merge(cxbret, on="interval", how="left")
         df.loc[:, "lagret12"] = df["bret12"] - df["cx_bret12"]
         
-        # === 价格动量/反转特征（12个，V4原版：全局shift+rolling）===
         log.inf("Generating price momentum/reversal features...")
-        
         df.loc[:, "ret_1"] = (df["midpx"] - df["midpx"].shift(1)) / df["midpx"].shift(1)
         df.loc[:, "ret_3"] = (df["midpx"] - df["midpx"].shift(3)) / df["midpx"].shift(3)
         df.loc[:, "ret_6"] = (df["midpx"] - df["midpx"].shift(6)) / df["midpx"].shift(6)
@@ -121,20 +102,16 @@ class MeowFeatureGenerator(object):
         df.loc[:, "rolling_vol_12"] = df["ret_1"].rolling(window=12, min_periods=1).std()
         
         df.loc[:, "high_low_range"] = (df["high"] - df["low"]) / df["midpx"]
-        
         price_range = df["high"] - df["low"]
         price_range = price_range.replace(0, 1e-10)
         df.loc[:, "price_position"] = (df["lastpx"] - df["low"]) / price_range
         
-        # 隔夜跳空（V4原版：sort_values+groupby(symbol)+shift+sort_index）
         df_sorted = df.sort_values(["symbol", "interval"])
         df_sorted.loc[:, "prev_close"] = df_sorted.groupby("symbol")["lastpx"].shift(1)
         df_sorted.loc[:, "overnight_gap"] = (df_sorted["open"] - df_sorted["prev_close"]) / df_sorted["prev_close"]
         df = df_sorted.sort_index()
         
-        # === 盘口压力特征（16个）===
         log.inf("Generating order book pressure features...")
-        
         df.loc[:, "spread"] = df["ask0"] - df["bid0"]
         df.loc[:, "relative_spread"] = (df["ask0"] - df["bid0"]) / df["midpx"]
         
@@ -149,7 +126,6 @@ class MeowFeatureGenerator(object):
         df.loc[:, "depth_sum_4"] = df["bsize0_4"] + df["asize0_4"]
         df.loc[:, "depth_sum_9"] = df["depth_sum_4"]
         
-        # 深度变化（V4原版：sort_values+groupby(symbol)+diff+sort_index）
         df_sorted = df.sort_values(["symbol", "interval"])
         df_sorted.loc[:, "depth_delta_4"] = df_sorted.groupby("symbol")["depth_sum_4"].diff()
         df_sorted.loc[:, "depth_delta_9"] = df_sorted.groupby("symbol")["depth_sum_9"].diff()
@@ -161,13 +137,10 @@ class MeowFeatureGenerator(object):
         
         micro_price = (df["bid0"] * df["bsize0"] + df["ask0"] * df["asize0"]) / (df["bsize0"] + df["asize0"]).replace(0, 1e-10)
         df.loc[:, "micro_price_dev"] = (micro_price - df["midpx"]) / df["midpx"]
-        
         df.loc[:, "bid_ask_bias_0"] = (df["bid0"] * df["bsize0"] - df["ask0"] * df["asize0"]) / (df["bid0"] * df["bsize0"] + df["ask0"] * df["asize0"]).replace(0, 1e-10)
         df.loc[:, "bid_ask_bias_4"] = (df["btr0_4"] - df["atr0_4"]) / (df["btr0_4"] + df["atr0_4"]).replace(0, 1e-10)
         
-        # === 成交主动性特征（15个）===
         log.inf("Generating trade activity features...")
-        
         df.loc[:, "trade_buy_intensity"] = df["tradeBuyQty"] / df["depth_sum_4"].replace(0, 1e-10)
         
         has_trade_sell = "tradeSellQty" in df.columns
@@ -191,18 +164,15 @@ class MeowFeatureGenerator(object):
             df.loc[:, "trade_sell_turnover_ratio"] = 0
             df.loc[:, "trade_net_turnover_ratio"] = df["trade_buy_turnover_ratio"]
         
-        # 滚动成交量（V4原版：sort_values+groupby(symbol)+rolling+sort_index）
         df_sorted = df.sort_values(["symbol", "interval"])
         df_sorted.loc[:, "rolling_trade_buy_qty_6"] = df_sorted.groupby("symbol")["tradeBuyQty"].rolling(window=6, min_periods=1).sum().reset_index(level=0, drop=True)
         df_sorted.loc[:, "rolling_trade_buy_qty_12"] = df_sorted.groupby("symbol")["tradeBuyQty"].rolling(window=12, min_periods=1).sum().reset_index(level=0, drop=True)
-        
         if has_trade_sell:
             df_sorted.loc[:, "rolling_trade_sell_qty_6"] = df_sorted.groupby("symbol")["tradeSellQty"].rolling(window=6, min_periods=1).sum().reset_index(level=0, drop=True)
             df_sorted.loc[:, "rolling_trade_sell_qty_12"] = df_sorted.groupby("symbol")["tradeSellQty"].rolling(window=12, min_periods=1).sum().reset_index(level=0, drop=True)
         else:
             df_sorted.loc[:, "rolling_trade_sell_qty_6"] = 0
             df_sorted.loc[:, "rolling_trade_sell_qty_12"] = 0
-            
         df = df_sorted.sort_index()
         
         if has_nTradeSell:
@@ -212,7 +182,6 @@ class MeowFeatureGenerator(object):
             df.loc[:, "trade_count_imb"] = df["nTradeBuy"] / (df["nTradeBuy"] + 1).replace(0, 1e-10)
         
         df.loc[:, "trade_count_imbema5"] = df["trade_count_imb"].ewm(halflife=5).mean()
-        
         df.loc[:, "buy_trade_size"] = df["tradeBuyQty"] / df["nTradeBuy"].replace(0, 1e-10)
         
         if has_trade_sell and has_nTradeSell:
@@ -222,70 +191,48 @@ class MeowFeatureGenerator(object):
             df.loc[:, "sell_trade_size"] = df["buy_trade_size"]
             df.loc[:, "trade_size_ratio"] = 1.0
         
-        # === 横截面rank特征（20个，V4原版：groupby(interval)）===
         log.inf("Generating cross-sectional rank features...")
-        
         cs_rank_cols = [
-            "ob_imb0", "ob_imb4", "ob_imb9",
-            "trade_imb", "trade_imbema5",
-            "spread", "relative_spread", "weighted_spread_4",
-            "amount_imb_4",
-            "depth_sum_4", "depth_delta_4",
-            "buy_pressure_0", "buy_pressure_4",
-            "micro_price_dev", "bid_ask_bias_0",
-            "trade_buy_intensity", "trade_net_intensity",
-            "trade_buy_turnover_ratio",
-            "trade_count_imb", "buy_trade_size",
+            "ob_imb0", "ob_imb4", "ob_imb9", "trade_imb", "trade_imbema5",
+            "spread", "relative_spread", "weighted_spread_4", "amount_imb_4",
+            "depth_sum_4", "depth_delta_4", "buy_pressure_0", "buy_pressure_4",
+            "micro_price_dev", "bid_ask_bias_0", "trade_buy_intensity", "trade_net_intensity",
+            "trade_buy_turnover_ratio", "trade_count_imb", "buy_trade_size",
         ]
-        
         for col in cs_rank_cols:
-            rank_col = f"cs_rank_{col}"
-            df.loc[:, rank_col] = df.groupby("interval")[col].rank(pct=True)
+            df.loc[:, f"cs_rank_{col}"] = df.groupby("interval")[col].rank(pct=True)
         
-        # === 交互特征（5个）===
         log.inf("Generating interaction features...")
-        
         df.loc[:, "ret_3_x_imb0"] = df["ret_3"] * df["cs_rank_ob_imb0"]
         df.loc[:, "ret_6_x_imb0"] = df["ret_6"] * df["cs_rank_ob_imb0"]
         df.loc[:, "ret_3_x_buy_intensity"] = df["ret_3"] * df["cs_rank_trade_buy_intensity"]
         df.loc[:, "spread_x_vol"] = df["cs_rank_relative_spread"] * df["rolling_vol_12"]
         df.loc[:, "highlow_x_imb0"] = df["high_low_range"] * df["cs_rank_ob_imb0"]
         
-        # === P0 滚动统计特征（14个，sort_values+groupby(symbol)）===
         log.inf("Generating P0 rolling statistics features...")
-        
         df_sorted = df.sort_values(["symbol", "interval"])
-        
         df_sorted.loc[:, "ob_imb0_roll_mean_12"] = df_sorted.groupby("symbol")["ob_imb0"].rolling(window=12, min_periods=1).mean().reset_index(level=0, drop=True)
         df_sorted.loc[:, "ob_imb0_roll_std_12"] = df_sorted.groupby("symbol")["ob_imb0"].rolling(window=12, min_periods=1).std().reset_index(level=0, drop=True)
         df_sorted.loc[:, "ob_imb0_roll_skew_12"] = df_sorted.groupby("symbol")["ob_imb0"].rolling(window=12, min_periods=1).mean().reset_index(level=0, drop=True) ** 3
-        
         df_sorted.loc[:, "ob_imb4_roll_mean_12"] = df_sorted.groupby("symbol")["ob_imb4"].rolling(window=12, min_periods=1).mean().reset_index(level=0, drop=True)
         df_sorted.loc[:, "ob_imb4_roll_std_12"] = df_sorted.groupby("symbol")["ob_imb4"].rolling(window=12, min_periods=1).std().reset_index(level=0, drop=True)
-        
         df_sorted.loc[:, "trade_imb_roll_mean_12"] = df_sorted.groupby("symbol")["trade_imb"].rolling(window=12, min_periods=1).mean().reset_index(level=0, drop=True)
         df_sorted.loc[:, "trade_imb_roll_std_12"] = df_sorted.groupby("symbol")["trade_imb"].rolling(window=12, min_periods=1).std().reset_index(level=0, drop=True)
         df_sorted.loc[:, "trade_imb_roll_skew_12"] = df_sorted.groupby("symbol")["trade_imb"].rolling(window=12, min_periods=1).mean().reset_index(level=0, drop=True) ** 3
-        
         df_sorted.loc[:, "trade_imbema5_roll_mean_12"] = df_sorted.groupby("symbol")["trade_imbema5"].rolling(window=12, min_periods=1).mean().reset_index(level=0, drop=True)
         df_sorted.loc[:, "trade_imbema5_roll_std_12"] = df_sorted.groupby("symbol")["trade_imbema5"].rolling(window=12, min_periods=1).std().reset_index(level=0, drop=True)
-        
         df_sorted.loc[:, "ob_imb0_change_6"] = df_sorted.groupby("symbol")["ob_imb0"].diff(6)
         df_sorted.loc[:, "ob_imb4_change_6"] = df_sorted.groupby("symbol")["ob_imb4"].diff(6)
         df_sorted.loc[:, "trade_imb_change_6"] = df_sorted.groupby("symbol")["trade_imb"].diff(6)
         df_sorted.loc[:, "trade_imbema5_change_6"] = df_sorted.groupby("symbol")["trade_imbema5"].diff(6)
-        
         df = df_sorted.sort_index()
         
-        # === P1 横截面特征（8个，groupby(interval)）===
         log.inf("Generating P1 cross-sectional features...")
-        
         df.loc[:, "cs_rank_ret_3"] = df.groupby("interval")["ret_3"].rank(pct=True)
         df.loc[:, "cs_rank_ret_6"] = df.groupby("interval")["ret_6"].rank(pct=True)
         df.loc[:, "cs_rank_rolling_vol_12"] = df.groupby("interval")["rolling_vol_12"].rank(pct=True)
         df.loc[:, "cs_rank_rolling_mean_ret_12"] = df.groupby("interval")["rolling_mean_ret_12"].rank(pct=True)
         
-        # 横截面rank的变化（sort_values+groupby(symbol)+shift）
         df_sorted = df.sort_values(["symbol", "interval"])
         df_sorted.loc[:, "cs_rank_ret_3_change"] = df_sorted.groupby("symbol")["cs_rank_ret_3"].diff()
         df_sorted.loc[:, "cs_rank_ret_6_change"] = df_sorted.groupby("symbol")["cs_rank_ret_6"].diff()
@@ -293,7 +240,6 @@ class MeowFeatureGenerator(object):
         df_sorted.loc[:, "cs_rank_rolling_mean_ret_12_change"] = df_sorted.groupby("symbol")["cs_rank_rolling_mean_ret_12"].diff()
         df = df_sorted.sort_index()
         
-        # === 提取特征和标签 ===
         selected_features = self.featureNames(self.feature_set)
         xdf = df[self.mcols + selected_features].set_index(self.mcols)
         ydf = df[self.mcols + [self.ycol]].set_index(self.mcols)

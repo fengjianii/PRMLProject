@@ -1,21 +1,17 @@
 from meow import MeowEngine
 
-engine = MeowEngine(h5dir="../../archive", cacheDir=None)
+engine = MeowEngine(h5dir="../../archive", cacheDir=None, feature_set='full')
 
-# 最终自动调参
 best_params = engine.tune(
     20230601, 20231130,
-    n_trials=50,
+    n_trials=60,
     algorithm='bayesian',
     n_splits=3,
     early_stopping_rounds=50,
-    timeout_per_trial=900,
+    timeout_per_trial=1200,
     apply_best=True,
-    sample_ratio=0.7,
+    sample_ratio=0.8,
 )
 
-# 用最优参数训练
 engine.fit(20230601, 20231130)
-
-# 在测试集上评估
 engine.eval(20231201, 20231229)

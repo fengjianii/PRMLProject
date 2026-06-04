@@ -1,6 +1,6 @@
 """
 Reproducible training script with best hyperparameters
-Generated: 2026-06-03 12:57:01
+Generated: 2026-06-04 01:21:18
 Uses project MeowModel with update_params() to apply optimized params.
 """
 
@@ -8,15 +8,15 @@ from mdl import MeowModel
 from eval import MeowEvaluator
 
 BEST_PARAMS = {
-  "max_depth": 3,
-  "num_leaves": 8,
-  "learning_rate": 0.04155397855708038,
-  "n_estimators": 1500,
-  "subsample": 0.7313811040057838,
-  "colsample_bytree": 0.42221339552022713,
-  "min_child_samples": 150,
-  "reg_alpha": 0.018476435128841204,
-  "reg_lambda": 0.9683377710407788
+  "max_depth": 5,
+  "num_leaves": 26,
+  "learning_rate": 0.03585096884900132,
+  "n_estimators": 1000,
+  "subsample": 0.5701269205911143,
+  "colsample_bytree": 0.6033615848207509,
+  "min_child_samples": 250,
+  "reg_alpha": 1.0488862557637348,
+  "reg_lambda": 0.2693466283225946
 }
 
 def train_best_model(xdf, ydf):
