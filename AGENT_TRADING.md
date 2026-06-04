@@ -224,6 +224,22 @@ Forecast decile 分析中，底部十分位平均真实收益为 -3.41 bps，顶
 4.33 bps，顶部减底部约为 7.74 bps。这是 C 最好讲的一组结果：模型预测值不只提高
 Pearson，也能被转成有方向的 buy / hold / sell 信号。
 
+按 `date + interval` 做横截面期级聚合后，测试集共有 4,746 个横截面期。默认
+top-bottom 10% 策略的期级平均多空差为 0.00077266，约 7.73 bps；其中
+72.19% 的横截面期多空差为正。这是明天汇报时更稳的防守口径：C 不只看逐行样本均值，
+也检查了每个横截面期的排序方向。
+
+`run_c_experiment.py` 会生成以下 C 汇报产物：
+
+```text
+outputs/C_policy_comparison.csv
+outputs/C_decile_analysis.csv
+outputs/C_default_period_returns.csv
+outputs/C_experiment_summary.md
+outputs/C_decile_mean_target.svg
+outputs/C_policy_spread.svg
+```
+
 ## 汇报边界
 
 推荐说法：

@@ -66,6 +66,77 @@ def summarize_backtest(df, target_col="fret12", action_col=ACTION_COL):
     return summary
 
 
+def summarize_period_backtest(
+        df,
+        target_col="fret12",
+        action_col=ACTION_COL,
+        group_cols=("date", "interval")):
+    """Summarize signal quality at the cross-section period level.
+
+    Row-level averages are useful for checking individual signal directions.
+    Period-level averages are more report-friendly because each date+interval
+    cross-section contributes one observation.
+    """
+    if len(df) == 0:
+        raise ValueError("Cannot summarize an empty backtest")
+
+    required = list(group_cols) + [
+        target_col,
+        action_col,
+        "gross_return",
+        "net_return",
+    ]
+    missing = [col for col in required if col not in df.columns]
+    if missing:
+        raise ValueError("Missing required columns: {}".format(", ".join(missing)))
+
+    def per_period(group):
+        traded = group[group[action_col] != 0]
+        long_target = group.loc[group[action_col] == 1, target_col]
+        short_target = group.loc[group[action_col] == -1, target_col]
+        trade_net = traded["net_return"].mean() if len(traded) else 0.0
+        trade_hit = (
+            (traded["gross_return"] > 0).mean() if len(traded) else 0.0)
+        long_mean = long_target.mean() if len(long_target) else 0.0
+        short_mean = short_target.mean() if len(short_target) else 0.0
+        return pd.Series({
+            "period_mean_gross_return": group["gross_return"].mean(),
+            "period_mean_net_return": group["net_return"].mean(),
+            "period_trade_mean_net_return": trade_net,
+            "period_hit_rate": trade_hit,
+            "period_long_mean_target": long_mean,
+            "period_short_mean_target": short_mean,
+            "period_long_short_spread": long_mean - short_mean,
+        })
+
+    periods = df.groupby(list(group_cols), sort=True).apply(per_period)
+    net_std = periods["period_mean_net_return"].std()
+    spread_std = periods["period_long_short_spread"].std()
+    return {
+        "period_count": int(len(periods)),
+        "period_mean_gross_return": float(
+            periods["period_mean_gross_return"].mean()),
+        "period_mean_net_return": float(
+            periods["period_mean_net_return"].mean()),
+        "period_std_net_return": float(net_std) if pd.notna(net_std) else 0.0,
+        "period_positive_net_rate": float(
+            (periods["period_mean_net_return"] > 0).mean()),
+        "period_trade_mean_net_return": float(
+            periods["period_trade_mean_net_return"].mean()),
+        "period_hit_rate": float(periods["period_hit_rate"].mean()),
+        "period_long_mean_target": float(
+            periods["period_long_mean_target"].mean()),
+        "period_short_mean_target": float(
+            periods["period_short_mean_target"].mean()),
+        "period_long_short_spread": float(
+            periods["period_long_short_spread"].mean()),
+        "period_std_long_short_spread": float(
+            spread_std) if pd.notna(spread_std) else 0.0,
+        "period_positive_spread_rate": float(
+            (periods["period_long_short_spread"] > 0).mean()),
+    }
+
+
 def format_summary(summary):
     lines = ["Agent signal backtest summary:"]
     ordered_keys = [

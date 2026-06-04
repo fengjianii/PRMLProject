@@ -98,6 +98,19 @@ long_short_spread = 0.00077432
 
 不同交易比例下的策略敏感性也符合直觉：top-bottom 5% 的多空收益差最高，为 0.001042；top-bottom 10% 的多空收益差为 0.000774；top-bottom 20% 的多空收益差下降到 0.000551。交易范围越放宽，信号更稀释，但平均净收益仍保持为正。
 
+为了避免只看逐行样本均值，我们还增加了按 `date + interval` 聚合的横截面期级检查。测试集中共有 4,746 个横截面期，默认 top-bottom 10% 策略的期级平均多空差为 0.00077266，约 7.73 bps；其中 72.19% 的横截面期多空差为正。这说明结果不只是由少数样本堆出来的，而是在多数横截面期上都有方向性。
+
+配套脚本 `run_c_experiment.py` 会输出策略对比、decile 分析、期级收益明细和两张可直接放 PPT 的 SVG 图：
+
+```text
+outputs/C_policy_comparison.csv
+outputs/C_decile_analysis.csv
+outputs/C_default_period_returns.csv
+outputs/C_experiment_summary.md
+outputs/C_decile_mean_target.svg
+outputs/C_policy_spread.svg
+```
+
 ## 6. 局限性
 
 这个模块不模拟真实交易撮合，也不处理订单排队、限价单成交概率、滑点、撤单、仓位约束和多期持仓重叠问题。因此它不能被解释为完整的 Agent trading 系统。
