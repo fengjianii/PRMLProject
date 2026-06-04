@@ -8,6 +8,7 @@
 - A: `feat.py` 已扩展为 76 个特征，包含 `cs_rank`、P0 rolling stats 和 P1 cross-sectional features。
 - B: `mdl.py` 默认使用调参后的 `HistGradientBoostingRegressor` 参数。
 - C: 在预测模型之后接入轻量 Agent 决策层，用来验证 `forecast` 是否有交易方向价值。
+- B 的最新 `GBT-final` 调参报告显示最佳 Pearson 已更新到 0.0655。
 
 ## 定位
 
@@ -57,6 +58,21 @@ python meow.py
 
 ```text
 symbol,date,interval,fret12,forecast
+```
+
+如果使用 B 的最终模型目录，请在 `GBT-final/` 下运行：
+
+```powershell
+cd GBT-final
+$env:MEOW_PREDICTION_OUTPUT = "outputs/prediction_output.csv"
+python meow.py
+```
+
+然后回到项目根目录，用同一个 `backtest.py` 跑 C 的 Agent：
+
+```powershell
+cd ..
+python backtest.py --predictions GBT-final/outputs/prediction_output.csv --policy top_bottom --top-frac 0.10 --bottom-frac 0.10 --cost-bps 1 --summary-output outputs/agent_summary.csv
 ```
 
 ## 训练后直接跑 Agent 摘要
@@ -149,6 +165,10 @@ Agent 作为研究助手，根据市场微观结构、字段含义和已有实�
    `cs_rank_high_low_range`, `cs_rank_ret_3_change`。
 7. 交互因子: `ret_3_x_imb0`, `ret_6_x_imb0`,
    `ret_3_x_buy_intensity`, `spread_x_vol`, `highlow_x_imb0`。
+
+B 最新调参结果显示，`GBT-final/tuning_output/best_params.json` 中的最佳模型
+Pearson 更新到 0.0655。当前 C 的 Agent 层应该优先使用这个最终模型导出的
+`forecast`，而不是早期根目录模型输出。
 
 ## 汇报边界
 

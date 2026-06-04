@@ -10,3 +10,4 @@ To run the example code:
 Optional C module:
     -- see AGENT_TRADING.md for prediction export and lightweight Trading Agent backtest usage.
     -- see C_AGENT_REPORT.md for C's report-ready Agent section.
+    -- B's GBT-final/meow.py also supports MEOW_PREDICTION_OUTPUT for C backtests.

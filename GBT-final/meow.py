@@ -33,7 +33,8 @@
     engine.fit(20230601, 20231130)
     
     # 评估（使用12月数据）
-    engine.eval(20231201, 20231229)
+    prediction_path = os.environ.get("MEOW_PREDICTION_OUTPUT")
+    engine.eval(20231201, 20231229, predictionPath=prediction_path)
 
 项目结构：
     meow.py（主引擎）
@@ -145,7 +146,7 @@ class MeowEngine(object):
         """
         return self.model.predict(xdf)
 
-    def eval(self, startDate, endDate):
+    def eval(self, startDate, endDate, predictionPath=None):
         """
         评估模型
         
@@ -182,6 +183,8 @@ class MeowEngine(object):
         ydf.loc[:, "forecast"] = predictions
         # 计算评估指标
         self.evaluator.eval(ydf)
+        if predictionPath is not None:
+            self.savePredictions(ydf, predictionPath)
         
         # 生成预测可视化图表
         try:
@@ -205,6 +208,11 @@ class MeowEngine(object):
                 log.yellow("无法生成可视化图表")
         except Exception as e:
             log.yellow(f"生成可视化图表时出错: {e}")
+
+    def savePredictions(self, ydf, predictionPath):
+        os.makedirs(os.path.dirname(predictionPath) or ".", exist_ok=True)
+        ydf.reset_index().to_csv(predictionPath, index=False)
+        log.inf("Saved predictions to {}".format(predictionPath))
 
     def tune(self, startDate, endDate, n_trials=100, algorithm='bayesian',
              n_splits=5, early_stopping_rounds=50, timeout_per_trial=1800,
