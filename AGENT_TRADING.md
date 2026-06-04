@@ -33,6 +33,8 @@ signal backtest，用来说明预测信号能否转成可解释的交易动作�
 - `backtest.py`: 计算 `action * fret12`，并扣除可选交易成本。
 - `run_c_experiment.py`: 基于 B 的预测结果生成策略对比和 forecast decile 分析。
 - `agent_factor_mining.py`: 自动生成特征、挖掘因子 IC / 分组收益差，并导出 factor-aware Agent 配置。
+- `agent_execution_sim.py`: 简化执行仿真，加入撮合、滑点、订单排队、仓位上限和资金曲线。
+- `agent_rl_policy.py`: 轻量 Q-learning / contextual-bandit 策略选择器，用历史 reward 在线更新策略偏好。
 - `meow.py`: 保留默认入口，只通过环境变量开启预测导出和 Agent 摘要。
 - `C_AGENT_REPORT.md`: 可直接放进报告的 C 部分中文材料。
 
@@ -291,6 +293,94 @@ period_positive_spread_rate = 0.6764
 ```
 
 这个结果不替代 B 的最终 forecast，也不当作最终 out-of-sample 证明。它的价值是让 Agent 能自动提出候选因子、解释因子方向，并生成下一轮可验证的策略配置。
+
+## 简化执行仿真层
+
+为了让 Trading Agent 更接近真实交易链路，C 新增了 `agent_execution_sim.py`。它不是完整交易所撮合引擎，但会把原来的 signal backtest 往执行层推进一步：
+
+```text
+forecast -> action -> order -> matching / queue / slippage -> position PnL -> equity curve
+```
+
+运行示例：
+
+```powershell
+python agent_execution_sim.py --predictions outputs/B_prediction_output.csv --data-dir data --output-dir outputs --output-prefix C_execution_limit --order-style limit --notional-per-trade 10000 --max-gross-notional 10000000 --queue-ahead-frac 0.50 --impact-k 2 --fee-bps 0.5 --exit-impact-bps 0.5
+```
+
+当前实现包含：
+
+1. 撮合近似：market order 直接穿越买卖价差；limit order 只有当对手方成交量超过估计排队量时成交。
+2. 滑点建模：市价单根据下单量与盘口五档深度的参与率加入冲击成本。
+3. 订单排队：用 `queue_ahead_frac * bsize0/asize0` 估计前方排队量，未成交部分视为撤单。
+4. 仓位管理：每笔订单有 `notional_per_trade`，每个 `date + interval` 有 `max_gross_notional` 总敞口上限。
+5. 资金曲线：把每个横截面期的 PnL 聚合成 equity curve，并计算 drawdown。
+
+三种执行模式的真实数据诊断结果如下：
+
+```text
+market:
+  fill_rate = 1.0000
+  final_equity = 8,331,537.84
+  total_pnl = -1,668,462.16
+  max_drawdown = -0.1672
+
+hybrid:
+  fill_rate = 1.0000
+  final_equity = 9,778,965.38
+  total_pnl = -221,034.62
+  max_drawdown = -0.0312
+
+limit:
+  fill_rate = 0.6628
+  mean_fill_ratio = 0.6513
+  final_equity = 10,669,876.40
+  total_pnl = 669,876.40
+  max_drawdown = -0.0020
+```
+
+这个结果很适合汇报：signal 层面有 alpha，但市价强成交会被价差和滑点吃掉；被动限价挂单虽然只有约 66% 的订单成交，但执行成本更低，资金曲线反而更稳。这说明交易动作不能只看预测方向，还必须考虑订单类型和执行方式。
+
+输出文件包括：
+
+```text
+outputs/C_execution_market_summary.csv
+outputs/C_execution_hybrid_summary.csv
+outputs/C_execution_limit_summary.csv
+outputs/C_execution_limit_equity_curve.svg
+outputs/C_execution_limit_report.md
+```
+
+## 轻量强化学习策略选择
+
+C 还新增了 `agent_rl_policy.py`，作为轻量强化学习 / contextual-bandit 原型。它不做深度强化学习，而是在每个 `date + interval` 上根据状态选择策略：
+
+```text
+state = forecast dispersion + realized volatility bucket
+action = hold / top-bottom 5% / top-bottom 10% / top-bottom 20%
+reward = cost-adjusted mean net return
+update = Q[state, action] <- Q + alpha * (reward - Q)
+```
+
+运行：
+
+```powershell
+python agent_rl_policy.py --predictions outputs/B_prediction_output.csv --output-dir outputs --cost-bps 1 --alpha 0.20 --epsilon 0.05
+```
+
+真实数据诊断结果：
+
+```text
+steps = 4,746
+final_equity = 10,268,736.34
+total_pnl = 268,736.34
+mean_reward = 0.00031033
+positive_reward_rate = 0.7097
+max_drawdown = -0.00038693
+most_used_action = hold
+```
+
+这里的意义不是证明强化学习策略已经最优，而是补上“得到 reward 后更新策略偏好”的闭环。它学到在高风险或弱信号状态下更多选择 hold，在部分 strong-signal 状态下选择 top-bottom 20% 或 5%。
 
 ## 汇报边界
 

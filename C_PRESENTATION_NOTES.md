@@ -30,6 +30,14 @@
 
 > 我还做了一个自动因子挖掘 Agent。它在 12 月测试区间自动发现，短周期反转是最强的单因子方向，比如 `cs_rank_ret_3` 的 mean IC 是 `-0.049636`，说明横截面短期涨幅越靠前，未来 12 分钟越容易回撤。Agent 会把这类因子标记成 reverse / short / risk signal，并自动生成一个 factor-aware Agent 配置。这个配置的诊断多空差约 `4.88 bps`，主要用于提出下一轮候选策略。
 
+如果老师对 Agent trading 感兴趣，可以继续补执行层：
+
+> 我还加了一个简化执行仿真层。它会读取真实盘口，近似模拟 market order、limit order 和 hybrid order。market order 会穿越价差并加入滑点，limit order 会根据对手方成交量和排队量判断是否成交，同时加入每期仓位上限和资金曲线。结果显示，市价强成交虽然 100% 成交，但会被滑点吃掉；limit 模式成交率约 `66.28%`，但最终资金为 `10,669,876.40`，最大回撤只有 `-0.20%`。这说明 C 的 Agent 不只看预测方向，也开始考虑订单执行质量。
+
+如果还要讲强化学习：
+
+> 最后我做了一个轻量 Q-learning 策略选择器。它根据 forecast 离散度和波动状态，在 hold、top-bottom 5%、10%、20% 之间选择动作，然后用扣成本后的收益更新 Q 值。这个原型在 4,746 个横截面期上跑完，最终资金为 `10,268,736.34`，positive reward rate 为 `70.97%`。它不是深度强化学习，但补上了“收益反馈 -> 更新策略偏好”的闭环。
+
 ## 必背数字
 
 ```text
@@ -62,6 +70,19 @@ cs_rank_ret_3 mean_ic: -0.049636
 cs_rank_ret_3 spread: -4.45 bps
 ret_1 spread: -5.63 bps
 factor-aware Agent diagnostic spread: 4.88 bps
+
+Execution simulation:
+market final equity: 8,331,537.84
+hybrid final equity: 9,778,965.38
+limit fill_rate: 0.6628
+limit final equity: 10,669,876.40
+limit max_drawdown: -0.0020
+
+RL policy:
+steps: 4,746
+final_equity: 10,268,736.34
+positive_reward_rate: 0.7097
+max_drawdown: -0.00038693
 ```
 
 ## 老师可能追问
@@ -98,6 +119,18 @@ Pearson 说明预测值和真实收益有线性相关，但交易上还要看信
 
 它把 Agent 从“解释报告”变成“候选策略生成器”。脚本会自动算每个因子的 IC、ICIR 和分组收益差，判断方向是 positive 还是 reverse，再输出 `C_factor_agent_config.json`。这份配置可以作为下一轮模型消融、风控过滤器或 factor-aware policy 的起点。
 
+**你说加了真实撮合，是不是完整交易所仿真？**
+
+不是。现在是 execution approximation。我们用盘口快照和聚合成交量近似撮合：market order 穿越价差，limit order 根据对手方成交量和估计排队量决定成交。这比纯 signal backtest 更接近交易，但还不是逐笔订单级撮合。
+
+**为什么 market 亏、limit 反而正？**
+
+因为高频短周期里价差和滑点很重要。market order 为了保证成交要立刻吃价，收益会被执行成本吞掉；limit order 牺牲成交率，但拿到更好的入场价格，所以资金曲线更稳。这正好说明 Trading Agent 不能只判断方向，还要判断怎么执行。
+
+**强化学习是不是很完整？**
+
+不是完整深度强化学习，是轻量 Q-learning / contextual-bandit 原型。它的作用是演示 reward feedback：Agent 观察状态、选择策略、得到收益、更新 Q 值。我们把它作为未来做完整 RL trading 的雏形。
+
 ## PPT 建议
 
 1. 一页讲定位：课程主线是 `fret12` 预测，C 是预测后的轻量 Agent 决策层。
@@ -112,4 +145,5 @@ Pearson 说明预测值和真实收益有线性相关，但交易上还要看信
 outputs/C_decile_mean_target.svg
 outputs/C_policy_spread.svg
 outputs/C_top_factor_spread.svg
+outputs/C_execution_limit_equity_curve.svg
 ```
