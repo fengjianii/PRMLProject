@@ -42,6 +42,10 @@
 
 > 我最后又加了一个 Agent Controller 总控层。它不重新训练模型，而是把预测回测、因子挖掘、执行仿真、RL selector 的输出统一读进来，自动生成 `C_AGENT_DASHBOARD.md` 和 buy / sell / hold 决策样例。这样 C 的工作不是零散脚本，而是一个从 forecast 到 action、从 action 到 reward、再到执行和策略更新的完整研究原型。
 
+如果现场可以展示页面，可以接着说：
+
+> 为了汇报更直观，我还做了一个静态 GUI。它是一个深色 Trading Agent Console，左侧是模块导航，主区域展示 signal、factor mining、execution、RL 和 decision tape。它不是额外改结果，只是把 C 的已有实验输出变成一个可以现场演示的界面。
+
 ## 必背数字
 
 ```text
@@ -92,6 +96,10 @@ Agent Controller:
 dashboard: outputs/C_AGENT_DASHBOARD.md
 decision examples: outputs/C_agent_decision_examples.csv
 auto summary: signal / factor / execution / RL
+
+GUI:
+page: outputs/C_AGENT_GUI.html
+style: dark dashboard / left nav / KPI cards / charts / decision tape
 ```
 
 ## 老师可能追问
@@ -144,6 +152,10 @@ Pearson 说明预测值和真实收益有线性相关，但交易上还要看信
 
 它的意义是把 C 的模块从“几个脚本”收束成一个可解释系统。Controller 读取已有实验输出，自动生成 Dashboard 和具体 buy / sell / hold 决策样例。汇报时可以说：我不只给出平均收益，还能展示某个横截面里 Agent 为什么买、为什么卖、为什么选择 hold。
 
+**GUI 是不是又做了一个系统？**
+
+不是。GUI 只是展示层，读取的是前面脚本已经生成的 CSV 和 Markdown 输出。它的作用是把实验链路变得可视化，方便现场解释 C 的 Agent 从预测信号走到交易动作、执行质量和策略更新。
+
 ## PPT 建议
 
 1. 一页讲定位：课程主线是 `fret12` 预测，C 是预测后的轻量 Agent 决策层。
@@ -151,7 +163,7 @@ Pearson 说明预测值和真实收益有线性相关，但交易上还要看信
 3. 一页贴 decile 图：底部十分位 `-3.41 bps`，顶部十分位 `4.33 bps`。
 4. 一页贴策略敏感性：5%、10%、20% 多空差递减。
 5. 一页讲执行和 RL：market / limit / hybrid 对比，加上 Q-learning 闭环。
-6. 最后一页讲 Controller 和边界：它能一键汇总结果和样例，但还不是生产级自动交易系统。
+6. 最后一页讲 GUI / Controller 和边界：它能一键汇总结果和样例，但还不是生产级自动交易系统。
 
 可直接使用的图在：
 
@@ -162,4 +174,5 @@ outputs/C_top_factor_spread.svg
 outputs/C_execution_limit_equity_curve.svg
 outputs/C_AGENT_DASHBOARD.md
 outputs/C_agent_decision_examples.md
+outputs/C_AGENT_GUI.html
 ```

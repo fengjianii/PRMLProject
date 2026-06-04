@@ -17,3 +17,4 @@ Optional C module:
     -- agent_execution_sim.py adds simplified matching, slippage, queue, position, and equity-curve simulation.
     -- agent_rl_policy.py adds a lightweight Q-learning/contextual-bandit adaptive policy prototype.
     -- agent_controller.py summarizes all C-side Agent outputs into a final dashboard and decision examples.
+    -- agent_gui.py builds a static dark GUI for presentation from the C-side Agent outputs.

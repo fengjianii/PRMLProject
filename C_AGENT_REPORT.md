@@ -129,6 +129,8 @@ outputs/C_policy_spread.svg
 
 为了让这些模块形成一个完整入口，我最后新增了 `agent_controller.py`。它不重新训练模型，而是读取策略对比、decile 分析、自动因子挖掘、执行仿真和 RL selector 的已有输出，生成 `outputs/C_AGENT_DASHBOARD.md`、`outputs/C_agent_decision_examples.csv` 和 `outputs/C_agent_decision_examples.md`。其中 Dashboard 会汇总 7.74 bps 多空差、72.19% 期级正多空差比例、`cs_rank_ret_3` 因子方向、limit 执行资金曲线和 RL 结果；决策样例则展示具体样本如何从 forecast percentile 变成 buy / sell / hold 动作。这个总控层让 C 的工作从一组实验脚本收束成“市场状态 -> Agent 判断 -> 动作 -> reward -> 策略更新”的研究原型。
 
+在展示层面，我还新增了 `agent_gui.py`，它会把这些结果生成一个静态深色 GUI：`outputs/C_AGENT_GUI.html`。页面左侧是模块导航，主区域展示 KPI、forecast decile 图、策略敏感性图、limit 资金曲线、执行模式对比、因子挖掘结果、RL Q table 和具体交易样例。这个 GUI 只用于汇报和复盘，不改变任何实验结果。
+
 ## 6. 局限性
 
 这个模块虽然已经加入了撮合、滑点、订单排队、仓位、资金曲线和轻量强化学习，但它们仍然是基于盘口快照和聚合成交量的近似仿真，不是真实交易所逐笔撮合系统。它没有完整订单生命周期、逐笔排队位置、真实冲击成本、跨期组合优化和严格 out-of-sample 强化学习训练。因此它不能被解释为完整的 Agent trading 系统。
