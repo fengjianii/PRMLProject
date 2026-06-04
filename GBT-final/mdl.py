@@ -91,7 +91,7 @@ class MeowModel(object):
             'gpu_use_dp': False,       # 使用单精度浮点（GPU更快）
             'max_bin': 63,             # GPU模式下限制直方图bin数
             
-            # 防过拟合参数（V4最优参数）
+            # 防过拟合参数（V4结构+V5特征集）
             'max_depth': 5,
             'num_leaves': 31,
             'min_child_samples': 200,

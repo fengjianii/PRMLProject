@@ -77,7 +77,7 @@ class MeowTuner:
         n_estimators = trial.suggest_int('n_estimators', 200, 2000, step=100)
         
         subsample = trial.suggest_float('subsample', 0.5, 0.8)
-        colsample_bytree = trial.suggest_float('colsample_bytree', 0.5, 0.8)
+        colsample_bytree = trial.suggest_float('colsample_bytree', 0.4, 0.7)
         
         min_child_samples = trial.suggest_int('min_child_samples', 50, 300, step=50)
         
@@ -223,12 +223,12 @@ class MeowTuner:
         # 采样当前试验的超参数
         params = self._suggest_params(trial)
         
-        # 每个trial独立随机采样子集（时序安全：连续切片，内部顺序不变）
+        # 子采样：固定从尾部截取（保证所有trial评估相同时间窗口，TPE可比）
+        # 之前用随机起点导致不同trial窗口不同，CV分数不可比，严重干扰贝叶斯优化
         if sample_ratio < 1.0:
             n_total = len(X)
             n_sample = int(n_total * sample_ratio)
-            max_start = n_total - n_sample
-            start = np.random.randint(0, max_start + 1)
+            start = n_total - n_sample
             X = X[start:start + n_sample]
             y = y[start:start + n_sample]
             log.inf(f"Trial {trial.number} subsample: [{start}:{start+n_sample}] of {n_total} (ratio={sample_ratio})")
@@ -312,10 +312,13 @@ class MeowTuner:
         self.trial_logs.append(trial_log)
         self._update_top5(trial_log)
         
-        # 输出本次试验摘要
+        # 诊断：输出每折Pearson，检查最后一折是否偏低（CV均值虚高）
+        last_fold_ratio = fold_pearsons[-1] / avg_pearson if avg_pearson > 0 else 0
+        fold_detail = " | ".join(f"F{i}={p:.4f}" for i, p in enumerate(fold_pearsons))
         log.inf(f"Trial {trial.number}: Pearson={avg_pearson:.4f} R2={avg_r2:.5f} MSE={avg_mse:.6f} "
                 f"TrainPearson={avg_train_pearson:.4f} OverfitRatio={overfitting_ratio:.3f} "
                 f"BestIter={avg_best_iter:.0f} Time={total_time:.1f}s")
+        log.inf(f"  Fold detail: {fold_detail} | LastFold/Mean={last_fold_ratio:.3f}")
         
         # V3：去掉过拟合惩罚
         # V2证明惩罚让TPE走向极端保守(重正则化+少树)，导致欠拟合

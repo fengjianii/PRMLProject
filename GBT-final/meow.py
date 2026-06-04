@@ -63,21 +63,12 @@ class MeowEngine(object):
     是项目的核心控制类，负责协调各模块的工作流程。
     """
     
-    def __init__(self, h5dir, cacheDir):
+    def __init__(self, h5dir, cacheDir, feature_set='full'):
         """
-        初始化引擎，创建所有模块实例
-        
         参数：
             h5dir: H5数据文件所在目录
-            cacheDir: 缓存目录（当前未使用，可扩展用于缓存特征、模型等）
-            
-        初始化流程：
-            1. 加载交易日历
-            2. 验证数据目录有效性
-            3. 创建数据加载器
-            4. 创建特征生成器
-            5. 创建模型
-            6. 创建评估器
+            cacheDir: 缓存目录
+            feature_set: 特征集选择（'full','v4','no_p1','no_p0'），用于消融实验
         """
         # 加载交易日历
         self.calendar = Calendar()
@@ -93,7 +84,7 @@ class MeowEngine(object):
         
         # 创建各模块实例
         self.dloader = MeowDataLoader(h5dir=h5dir)           # 数据加载器
-        self.featGenerator = MeowFeatureGenerator(cacheDir=cacheDir)  # 特征生成器
+        self.featGenerator = MeowFeatureGenerator(cacheDir=cacheDir, feature_set=feature_set)
         self.model = MeowModel(cacheDir=cacheDir)            # 模型
         self.evaluator = MeowEvaluator(cacheDir=cacheDir)    # 评估器
 
