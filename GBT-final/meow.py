@@ -284,15 +284,29 @@ if __name__ == "__main__":
         训练集：20230601 - 20231130（约123个交易日）
         测试集：20231201 - 20231229（约21个交易日）
         
-    注意：
-        运行前需要修改h5dir为实际数据目录路径
-        当前使用相对路径"archive"，需要确保archive目录存在且包含数据文件
+    环境变量：
+        MEOW_DATA_DIR: 可选，覆盖默认数据目录。默认使用项目根目录 data/
+        MEOW_BEST_PARAMS: 可选，覆盖默认调参结果 JSON
+        MEOW_FEATURE_SET: 可选，默认为 full
+        MEOW_PREDICTION_OUTPUT: 可选，导出测试集预测结果 CSV
     """
-    # 创建引擎（修改h5dir为你的数据目录）
-    engine = MeowEngine(h5dir="../../archive", cacheDir=None)
+    project_dir = os.path.dirname(os.path.dirname(__file__))
+    default_data_dir = os.path.join(project_dir, "data")
+    default_best_params = os.path.join(
+        os.path.dirname(__file__), "tuning_output", "best_params.json")
+
+    data_dir = os.environ.get("MEOW_DATA_DIR", default_data_dir)
+    feature_set = os.environ.get("MEOW_FEATURE_SET", "full")
+    best_params_path = os.environ.get("MEOW_BEST_PARAMS", default_best_params)
+    prediction_path = os.environ.get("MEOW_PREDICTION_OUTPUT")
+
+    # 创建引擎（默认使用项目根目录 data，也可通过 MEOW_DATA_DIR 覆盖）
+    engine = MeowEngine(h5dir=data_dir, cacheDir=None, feature_set=feature_set)
+    if best_params_path and os.path.exists(best_params_path):
+        engine.model.load_params_from_json(best_params_path)
     
     # 训练模型（使用6月至11月数据）
     engine.fit(20230601, 20231130)
     
     # 评估模型（使用12月数据）
-    engine.eval(20231201, 20231229)
+    engine.eval(20231201, 20231229, predictionPath=prediction_path)

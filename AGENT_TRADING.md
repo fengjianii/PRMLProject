@@ -6,9 +6,9 @@
 当前主线已经同步 A/B 最新进展：
 
 - A: `feat.py` 已扩展为 76 个特征，包含 `cs_rank`、P0 rolling stats 和 P1 cross-sectional features。
-- B: `mdl.py` 默认使用调参后的 `HistGradientBoostingRegressor` 参数。
+- B: `GBT-final` 使用调参后的 LightGBM GBT 模型，并保留 feature set 开关。
 - C: 在预测模型之后接入轻量 Agent 决策层，用来验证 `forecast` 是否有交易方向价值。
-- B 的最新 `GBT-final` 调参报告显示最佳 Pearson 已更新到 0.0655。
+- B 的最新 `GBT-final` 调参报告显示最佳 Pearson 为 0.0655；真实数据完整复现后，测试集 Pearson 为 0.0677。
 
 ## 定位
 
@@ -31,6 +31,7 @@ signal backtest，用来说明预测信号能否转成可解释的交易动作�
 
 - `agent_policy.py`: 把 `forecast` 转成 `action`。
 - `backtest.py`: 计算 `action * fret12`，并扣除可选交易成本。
+- `run_c_experiment.py`: 基于 B 的预测结果生成策略对比和 forecast decile 分析。
 - `meow.py`: 保留默认入口，只通过环境变量开启预测导出和 Agent 摘要。
 - `C_AGENT_REPORT.md`: 可直接放进报告的 C 部分中文材料。
 
@@ -64,15 +65,25 @@ symbol,date,interval,fret12,forecast
 
 ```powershell
 cd GBT-final
-$env:MEOW_PREDICTION_OUTPUT = "outputs/prediction_output.csv"
+$env:MEOW_PREDICTION_OUTPUT = "../outputs/B_prediction_output.csv"
 python meow.py
 ```
+
+`GBT-final/meow.py` 默认读取项目根目录的 `data/`，默认加载
+`GBT-final/tuning_output/best_params.json`。如果数据放在其他目录，可以用
+`MEOW_DATA_DIR` 覆盖。
 
 然后回到项目根目录，用同一个 `backtest.py` 跑 C 的 Agent：
 
 ```powershell
 cd ..
-python backtest.py --predictions GBT-final/outputs/prediction_output.csv --policy top_bottom --top-frac 0.10 --bottom-frac 0.10 --cost-bps 1 --summary-output outputs/agent_summary.csv
+python backtest.py --predictions outputs/B_prediction_output.csv --policy top_bottom --top-frac 0.10 --bottom-frac 0.10 --cost-bps 1 --summary-output outputs/B_agent_summary.csv
+```
+
+如果要生成 C 的策略对比和 decile 分析，继续运行：
+
+```powershell
+python run_c_experiment.py --predictions outputs/B_prediction_output.csv --output-dir outputs --cost-bps 1
 ```
 
 ## 训练后直接跑 Agent 摘要
@@ -167,8 +178,51 @@ Agent 作为研究助手，根据市场微观结构、字段含义和已有实�
    `ret_3_x_buy_intensity`, `spread_x_vol`, `highlow_x_imb0`。
 
 B 最新调参结果显示，`GBT-final/tuning_output/best_params.json` 中的最佳模型
-Pearson 更新到 0.0655。当前 C 的 Agent 层应该优先使用这个最终模型导出的
+Pearson 为 0.0655。真实数据复现后，B 最终模型在 2023 年 12 月测试集上
+Pearson 为 0.0677，当前 C 的 Agent 层应该优先使用这个最终模型导出的
 `forecast`，而不是早期根目录模型输出。
+
+## 真实数据结果
+
+数据集为 Kaggle `MEOW dataset` version 3，共 144 个 `.h5` 文件。训练区间为
+2023-06-01 到 2023-11-30，测试区间为 2023-12-01 到 2023-12-29。
+
+根目录 A 模型真实数据结果：
+
+```text
+Pearson = 0.0511
+R2 = 0.00196
+top-bottom 10% long_short_spread = 0.00069596
+```
+
+B 的 `GBT-final` 模型真实数据结果：
+
+```text
+Pearson = 0.0677
+R2 = 0.00443
+best_iteration = 935
+```
+
+C 使用 B 预测结果的默认 Agent 回测结果：
+
+```text
+policy = top_bottom
+top_frac = 0.10
+bottom_frac = 0.10
+cost_bps = 1
+samples = 1,462,884
+trade_ratio = 0.1986
+mean_net_return = 0.00005713
+trade_mean_net_return = 0.00028772
+hit_rate = 0.5008
+long_mean_target = 0.00043309
+short_mean_target = -0.00034123
+long_short_spread = 0.00077432
+```
+
+Forecast decile 分析中，底部十分位平均真实收益为 -3.41 bps，顶部十分位平均真实收益为
+4.33 bps，顶部减底部约为 7.74 bps。这是 C 最好讲的一组结果：模型预测值不只提高
+Pearson，也能被转成有方向的 buy / hold / sell 信号。
 
 ## 汇报边界
 

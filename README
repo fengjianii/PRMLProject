@@ -10,4 +10,5 @@ To run the example code:
 Optional C module:
     -- see AGENT_TRADING.md for prediction export and lightweight Trading Agent backtest usage.
     -- see C_AGENT_REPORT.md for C's report-ready Agent section.
-    -- B's GBT-final/meow.py also supports MEOW_PREDICTION_OUTPUT for C backtests.
+    -- B's GBT-final/meow.py supports MEOW_DATA_DIR, MEOW_BEST_PARAMS, MEOW_FEATURE_SET, and MEOW_PREDICTION_OUTPUT for C backtests.
+    -- run_c_experiment.py generates C policy comparison and forecast decile summaries from an exported prediction CSV.
