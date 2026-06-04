@@ -112,6 +112,6 @@ class MeowEngine(object):
 
 
 if __name__ == "__main__":
-    engine = MeowEngine(h5dir="../../archive", cacheDir=None)
+    engine = MeowEngine(h5dir="archive", cacheDir=None)
     engine.fit(20230601, 20231130)
     engine.eval(20231201, 20231229)
