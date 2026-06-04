@@ -395,6 +395,38 @@ V5 迭代中引入 `_per_session(symbol,date)` 按 (symbol, date) 分组，导�
 - **P1 横截面特征占 3 席**（#4, #5, #6）：验证了"相对强弱比绝对值更有预测力"的设计思路
 - **交互特征 ret_3_x_buy_intensity**：短期动量与买方力度的交叉信号，方向一致时更可靠
 
+![特征重要性图](report_figures/feature_importance.png)
+
+*图：Top 20 特征重要性条形图。overnight_gap、rolling_vol_12、ret_24 是前三大重要特征，横截面特征（cs_rank_*）占据多个重要位置。*
+
+### 4.7 模型性能可视化
+
+#### 4.7.1 训练曲线
+
+![训练曲线](report_figures/training_curve.png)
+
+*图：训练和验证Pearson曲线（上）及差值曲线（下）。训练集Pearson约0.132，验证集Pearson约0.072，差值约0.058，显示适度过拟合。训练在约1300轮达到最佳验证性能。*
+
+#### 4.7.2 预测效果
+
+![预测值与真实值散点图](report_figures/prediction_vs_actual.png)
+
+*图：预测值vs真实值散点图（上）及残差图（下）。散点图显示预测值与真实值呈弱正相关，残差图显示误差分布基本对称，无明显系统性偏差。*
+
+#### 4.7.3 残差分析
+
+![残差分布图](report_figures/residual_distribution.png)
+
+*图：残差分布分析，包含直方图、箱线图、Q-Q图和自相关图。残差近似正态分布，均值接近0，无明显自相关性，符合线性回归假设。*
+
+### 4.8 可视化分析结论
+
+1. **模型学习能力**：训练曲线显示模型能有效学习训练集信号（训练Pearson=0.132）
+2. **泛化能力**：验证集Pearson=0.074，测试集Pearson=0.0714，泛化性能良好
+3. **过拟合程度**：训练-验证差值约0.058，OverfitRatio约0.56，金融预测中属正常水平
+4. **预测分布**：散点图显示预测值与真实值正相关，但相关性较弱（Pearson=0.0716）
+5. **残差特性**：残差分布近似正态，无明显系统性偏差，模型假设基本成立
+
 ---
 
 ## 5. 成员分工
@@ -425,3 +457,9 @@ V5 迭代中引入 `_per_session(symbol,date)` 按 (symbol, date) 分组，导�
 | `GBT-final/总结.md` | **B** | B 的建模总结 |
 | `eval.py` | 原始 | 评估器（MSE / Pearson / R²） |
 | `tradingcalendar.py` | 原始 | 交易日历工具 |
+| `visualization.py` | **B** | 模型性能可视化模块 |
+| `figures/` | **B** | 模型评估图表目录 |
+| `figures/feature_importance.png` | **B** | 特征重要性Top 20条形图 |
+| `figures/training_curve.png` | **B** | 训练和验证Pearson曲线 |
+| `figures/prediction_vs_actual.png` | **B** | 预测值vs真实值散点图 |
+| `figures/residual_distribution.png` | **B** | 残差分布分析图 |
