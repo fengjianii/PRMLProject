@@ -37,6 +37,7 @@ signal backtest，用来说明预测信号能否转成可解释的交易动作�
 - `agent_rl_policy.py`: 轻量 Q-learning / contextual-bandit 策略选择器，用历史 reward 在线更新策略偏好。
 - `agent_controller.py`: 汇总预测回测、因子挖掘、执行仿真和 RL 输出，生成最终 Dashboard 和交易决策样例。
 - `agent_gui.py`: 生成深色静态 GUI，把 C 的指标、图表、执行结果和交易样例做成可直接演示的页面。
+- `agent_gui_server.py`: 启动本地 Live GUI，浏览器按钮可以实际运行白名单里的 C 侧 Python 脚本。
 - `meow.py`: 保留默认入口，只通过环境变量开启预测导出和 Agent 摘要。
 - `C_AGENT_REPORT.md`: 可直接放进报告的 C 部分中文材料。
 
@@ -442,6 +443,35 @@ outputs/C_AGENT_GUI.html
 5. Decision tape：具体 buy / sell / hold 样例。
 
 这个 GUI 只用于展示和研究复盘，不改变实验结果，也不作为生产交易界面。
+
+## 可执行 Live GUI
+
+如果希望 GUI 不只是展示，而是能在浏览器里点按钮实际运行代码，可以启动本地 live server：
+
+```powershell
+python agent_gui_server.py --host 127.0.0.1 --port 8765
+```
+
+然后打开：
+
+```text
+http://127.0.0.1:8765/
+```
+
+页面顶部的 `Run code` 区域可以触发这些任务：
+
+```text
+Refresh Controller  -> agent_controller.py
+Run Signal Backtest -> run_c_experiment.py + agent_controller.py
+Run RL Selector     -> agent_rl_policy.py + agent_controller.py
+Run Limit Execution -> agent_execution_sim.py --order-style limit + agent_controller.py
+Run Execution Suite -> market / hybrid / limit 三种执行仿真
+Mine Factors        -> agent_factor_mining.py + agent_controller.py
+Build Static HTML   -> agent_gui.py
+Compile Check       -> python -m py_compile ...
+```
+
+Live GUI 会把 stdout / stderr 日志显示在页面里的 console 区域，任务完成后可以点击 `Reload metrics` 刷新指标。它运行的不是任意命令，而是写死在 `TASKS` 白名单里的项目脚本；浏览器不能提交任意 shell 命令。
 
 ## 汇报边界
 

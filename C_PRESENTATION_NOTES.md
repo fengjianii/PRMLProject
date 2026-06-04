@@ -46,6 +46,10 @@
 
 > 为了汇报更直观，我还做了一个静态 GUI。它是一个深色 Trading Agent Console，左侧是模块导航，主区域展示 signal、factor mining、execution、RL 和 decision tape。它不是额外改结果，只是把 C 的已有实验输出变成一个可以现场演示的界面。
 
+如果要强调它能实际跑代码：
+
+> 后面我又把 GUI 升级成了 Live Console。页面上的按钮不是摆设，点击 `Refresh Controller` 会实际运行 `agent_controller.py`，点击 `Run Signal Backtest` 会重新跑 `run_c_experiment.py`，点击 `Run RL Selector` 会重新跑轻量 Q-learning。运行日志会直接显示在页面 console 里，所以它可以作为一个本地实验控制台，而不只是静态展示页。
+
 ## 必背数字
 
 ```text
@@ -100,6 +104,11 @@ auto summary: signal / factor / execution / RL
 GUI:
 page: outputs/C_AGENT_GUI.html
 style: dark dashboard / left nav / KPI cards / charts / decision tape
+
+Live GUI:
+url: http://127.0.0.1:8765/
+entry: python agent_gui_server.py --host 127.0.0.1 --port 8765
+can run: controller / signal backtest / execution / factor mining / RL / compile check
 ```
 
 ## 老师可能追问
@@ -156,6 +165,10 @@ Pearson 说明预测值和真实收益有线性相关，但交易上还要看信
 
 不是。GUI 只是展示层，读取的是前面脚本已经生成的 CSV 和 Markdown 输出。它的作用是把实验链路变得可视化，方便现场解释 C 的 Agent 从预测信号走到交易动作、执行质量和策略更新。
 
+**页面按钮真的会跑代码吗？**
+
+会。Live GUI 通过本地 Python server 暴露固定任务按钮，每个按钮对应一个白名单脚本，比如 `agent_controller.py`、`run_c_experiment.py`、`agent_rl_policy.py`。页面会显示运行状态和日志。安全边界是：它只能跑这些固定任务，不能让浏览器输入任意命令。
+
 ## PPT 建议
 
 1. 一页讲定位：课程主线是 `fret12` 预测，C 是预测后的轻量 Agent 决策层。
@@ -163,7 +176,7 @@ Pearson 说明预测值和真实收益有线性相关，但交易上还要看信
 3. 一页贴 decile 图：底部十分位 `-3.41 bps`，顶部十分位 `4.33 bps`。
 4. 一页贴策略敏感性：5%、10%、20% 多空差递减。
 5. 一页讲执行和 RL：market / limit / hybrid 对比，加上 Q-learning 闭环。
-6. 最后一页讲 GUI / Controller 和边界：它能一键汇总结果和样例，但还不是生产级自动交易系统。
+6. 最后一页讲 GUI / Controller 和边界：它能一键汇总结果、运行脚本和展示日志，但还不是生产级自动交易系统。
 
 可直接使用的图在：
 

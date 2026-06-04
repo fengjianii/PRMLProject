@@ -131,6 +131,8 @@ outputs/C_policy_spread.svg
 
 在展示层面，我还新增了 `agent_gui.py`，它会把这些结果生成一个静态深色 GUI：`outputs/C_AGENT_GUI.html`。页面左侧是模块导航，主区域展示 KPI、forecast decile 图、策略敏感性图、limit 资金曲线、执行模式对比、因子挖掘结果、RL Q table 和具体交易样例。这个 GUI 只用于汇报和复盘，不改变任何实验结果。
 
+进一步地，`agent_gui_server.py` 把静态 GUI 升级成了本地 Live Console。启动后打开 `http://127.0.0.1:8765/`，页面按钮可以实际触发白名单里的 Python 脚本，例如重新运行 `agent_controller.py`、`run_c_experiment.py`、`agent_rl_policy.py`、`agent_execution_sim.py` 和 `agent_factor_mining.py`，并把运行日志显示在页面 console 区域。这个设计让 C 的演示更接近一个实验控制台，但仍然限制为本地研究脚本，不提供任意命令执行能力。
+
 ## 6. 局限性
 
 这个模块虽然已经加入了撮合、滑点、订单排队、仓位、资金曲线和轻量强化学习，但它们仍然是基于盘口快照和聚合成交量的近似仿真，不是真实交易所逐笔撮合系统。它没有完整订单生命周期、逐笔排队位置、真实冲击成本、跨期组合优化和严格 out-of-sample 强化学习训练。因此它不能被解释为完整的 Agent trading 系统。
