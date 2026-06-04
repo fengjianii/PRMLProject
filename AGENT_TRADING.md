@@ -35,6 +35,7 @@ signal backtest，用来说明预测信号能否转成可解释的交易动作�
 - `agent_factor_mining.py`: 自动生成特征、挖掘因子 IC / 分组收益差，并导出 factor-aware Agent 配置。
 - `agent_execution_sim.py`: 简化执行仿真，加入撮合、滑点、订单排队、仓位上限和资金曲线。
 - `agent_rl_policy.py`: 轻量 Q-learning / contextual-bandit 策略选择器，用历史 reward 在线更新策略偏好。
+- `agent_controller.py`: 汇总预测回测、因子挖掘、执行仿真和 RL 输出，生成最终 Dashboard 和交易决策样例。
 - `meow.py`: 保留默认入口，只通过环境变量开启预测导出和 Agent 摘要。
 - `C_AGENT_REPORT.md`: 可直接放进报告的 C 部分中文材料。
 
@@ -381,6 +382,41 @@ most_used_action = hold
 ```
 
 这里的意义不是证明强化学习策略已经最优，而是补上“得到 reward 后更新策略偏好”的闭环。它学到在高风险或弱信号状态下更多选择 hold，在部分 strong-signal 状态下选择 top-bottom 20% 或 5%。
+
+## Agent Controller 总控层
+
+最后新增 `agent_controller.py`，用于把 C 分散的实验结果收束成一个汇报入口。它不重新训练模型，只读取已有输出，生成最终 Dashboard 和可解释交易样例：
+
+```powershell
+python agent_controller.py --predictions outputs/B_prediction_output.csv --output-dir outputs
+```
+
+它会读取：
+
+```text
+outputs/C_policy_comparison.csv
+outputs/C_decile_analysis.csv
+outputs/C_default_period_returns.csv
+outputs/C_factor_mining_summary.csv
+outputs/C_factor_agent_summary.csv
+outputs/C_execution_market_summary.csv
+outputs/C_execution_hybrid_summary.csv
+outputs/C_execution_limit_summary.csv
+outputs/C_rl_policy_summary.csv
+outputs/C_rl_q_table.csv
+```
+
+并输出：
+
+```text
+outputs/C_AGENT_DASHBOARD.md
+outputs/C_agent_decision_examples.csv
+outputs/C_agent_decision_examples.md
+```
+
+Dashboard 会自动汇总明天最该讲的数字：B 最终模型 Pearson `0.0677`，C 默认信号多空差 `7.74 bps`，期级正多空差比例 `72.19%`，自动因子挖掘的代表因子 `cs_rank_ret_3`，limit 执行仿真的最终资金 `10,669,876.40`，以及 RL selector 的最终资金 `10,268,736.34`。
+
+交易样例会从 B 的预测文件中各抽几条 buy / sell / hold 记录，展示 Agent 如何根据同一横截面的 forecast percentile 做动作选择。这个文件很适合应对老师追问：“你说 Agent 会判断，那具体某一条样本是怎么判断的？”
 
 ## 汇报边界
 

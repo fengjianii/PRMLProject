@@ -127,6 +127,8 @@ outputs/C_policy_spread.svg
 
 最后，我还加入了 `agent_rl_policy.py` 作为轻量强化学习原型。它不是深度强化学习，而是一个 Q-learning / contextual-bandit 策略选择器：状态由 forecast 离散度和波动状态组成，动作是在 hold、top-bottom 5%、top-bottom 10% 和 top-bottom 20% 之间选择，reward 是扣除成本后的平均净收益。真实数据上，它跑了 4,746 个横截面期，最终资金为 10,268,736.34，总 PnL 为 268,736.34，positive reward rate 为 70.97%，最大回撤约 -0.039%。它补上了“得到 reward 后更新策略偏好”的闭环。
 
+为了让这些模块形成一个完整入口，我最后新增了 `agent_controller.py`。它不重新训练模型，而是读取策略对比、decile 分析、自动因子挖掘、执行仿真和 RL selector 的已有输出，生成 `outputs/C_AGENT_DASHBOARD.md`、`outputs/C_agent_decision_examples.csv` 和 `outputs/C_agent_decision_examples.md`。其中 Dashboard 会汇总 7.74 bps 多空差、72.19% 期级正多空差比例、`cs_rank_ret_3` 因子方向、limit 执行资金曲线和 RL 结果；决策样例则展示具体样本如何从 forecast percentile 变成 buy / sell / hold 动作。这个总控层让 C 的工作从一组实验脚本收束成“市场状态 -> Agent 判断 -> 动作 -> reward -> 策略更新”的研究原型。
+
 ## 6. 局限性
 
 这个模块虽然已经加入了撮合、滑点、订单排队、仓位、资金曲线和轻量强化学习，但它们仍然是基于盘口快照和聚合成交量的近似仿真，不是真实交易所逐笔撮合系统。它没有完整订单生命周期、逐笔排队位置、真实冲击成本、跨期组合优化和严格 out-of-sample 强化学习训练。因此它不能被解释为完整的 Agent trading 系统。
@@ -138,7 +140,7 @@ outputs/C_policy_spread.svg
 汇报时可以这样说：
 
 ```text
-我负责 Agent 创新和实验整合部分。我们的项目主线仍然是课程要求的 12 分钟收益率预测，没有把它包装成完整自动交易系统。在主线之外，我做了两件事：第一，用 Agent 辅助因子挖掘，把 76 个特征组织成盘口压力、流动性、成交主动性、动量反转、时序状态、横截面相对强弱和交互因子几类；第二，在模型输出 forecast 后加入轻量 Trading Agent，把预测值转成 buy / hold / sell 动作，并用真实 fret12 做简化 reward 验证预测信号是否有交易方向价值。真实数据复现中，B 最终模型 Pearson 为 0.0677，C 的 top-bottom 10% 策略多空收益差为 0.00077432，说明预测信号有一定横截面交易方向价值。
+我负责 Agent 创新和实验整合部分。我们的项目主线仍然是课程要求的 12 分钟收益率预测，没有把它包装成完整自动交易系统。在主线之外，我做了三件事：第一，用 Agent 辅助因子挖掘，把 76 个特征组织成盘口压力、流动性、成交主动性、动量反转、时序状态、横截面相对强弱和交互因子几类；第二，在模型输出 forecast 后加入轻量 Trading Agent，把预测值转成 buy / hold / sell 动作，并用真实 fret12 做简化 reward 验证预测信号是否有交易方向价值；第三，用 Controller 把信号回测、执行仿真和轻量 RL 结果统一成 Dashboard 和交易样例。真实数据复现中，B 最终模型 Pearson 为 0.0677，C 的 top-bottom 10% 策略多空收益差为 0.00077432，说明预测信号有一定横截面交易方向价值。
 ```
 
 如果老师追问为什么不做完整 Agent trading，可以回答：

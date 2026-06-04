@@ -16,3 +16,4 @@ Optional C module:
     -- agent_factor_mining.py runs automatic factor mining from h5 data and exports factor-aware Agent diagnostics.
     -- agent_execution_sim.py adds simplified matching, slippage, queue, position, and equity-curve simulation.
     -- agent_rl_policy.py adds a lightweight Q-learning/contextual-bandit adaptive policy prototype.
+    -- agent_controller.py summarizes all C-side Agent outputs into a final dashboard and decision examples.
